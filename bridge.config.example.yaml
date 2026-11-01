@@ -27,7 +27,7 @@ server:
   # 保护 /admin 管理台与 /admin/api/**。留空 = 不鉴权（本地使用可以，公网务必设置）
   adminToken: ${BRIDGE_ADMIN_TOKEN:-}
 
-  # Web 管理台：可视化添加来源、测试连通性、生成接入提示词
+  # Web 管理台：可视化添加来源、逐项测试、管理认证信息 / 数据编排、生成接入提示词
   admin:
     enabled: true
     path: /admin
@@ -35,6 +35,9 @@ server:
     storeFile: ${BRIDGE_DATA_DIR:-./data}/managed-sources.json
     # 管理台里「粘贴 OpenAPI 文档」时保存到的目录
     specsDir: ${BRIDGE_DATA_DIR:-./data}/specs
+    # 同级目录下还会生成：
+    #   credentials.json  可复用的认证信息（按名称引用，值以掩码展示）
+    #   transforms.json   按 source/tool 保存的返回数据编排
 
   mcp:
     path: /mcp
@@ -84,6 +87,13 @@ apis:
   #     ApiKeyAuth:  { token: ${INTERNAL_API_KEY} }
   #     BearerAuth:  { token: ${INTERNAL_TOKEN} }
   #     BasicAuth:   { username: ${INTERNAL_USER}, password: ${INTERNAL_PASS} }
+
+  # 复用管理台「认证信息」里的命名凭证（轮换密钥只需改一处）：
+  #   凭证类型支持 header / bearer / basic，存于 data/credentials.json。
+  #   显式 headers 优先于凭证生成的头，同名（忽略大小写）只保留一份。
+  # - name: rainyun
+  #   spec: https://api.rainyun.com/openapi.json
+  #   credentialRefs: [rainyun]
 
 # =============================================================================
 #  方向一：MCP  ->  API / OpenAPI

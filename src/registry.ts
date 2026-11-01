@@ -217,6 +217,11 @@ export class Registry {
     });
   }
 
+  /** Every registered tool of one source, regardless of exposure (admin UI testing). */
+  getToolsForSource(source: string): BridgeTool[] {
+    return this.tools.filter((tool) => tool.source === source);
+  }
+
   getTool(name: string): BridgeTool | undefined {
     return this.toolByName.get(name);
   }

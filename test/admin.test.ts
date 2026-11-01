@@ -5,7 +5,9 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
+import { CredentialStore } from "../src/admin/credentials.js";
 import { SourceStore } from "../src/admin/store.js";
+import { TransformStore } from "../src/admin/transforms.js";
 import { loadConfig } from "../src/config.js";
 import { createHttpApp } from "../src/http/server.js";
 import { Registry } from "../src/registry.js";
@@ -18,6 +20,8 @@ const specPath = path.resolve("test/fixtures/petstore.openapi.json");
 let mock: MockApi;
 let registry: Registry;
 let store: SourceStore;
+let credentials: CredentialStore;
+let transforms: TransformStore;
 let httpServer: Server;
 let appClose: () => Promise<void>;
 let base: string;
@@ -50,12 +54,26 @@ before(async () => {
 
   const config = await loadConfig(configPath);
   const logger = new Logger("error", "text", "test");
-  store = new SourceStore(config, logger);
+  const dataDir = path.join(tempDir, "data");
+  credentials = new CredentialStore(path.join(dataDir, "credentials.json"), logger);
+  await credentials.init();
+  transforms = new TransformStore(path.join(dataDir, "transforms.json"), logger);
+  await transforms.init();
+  store = new SourceStore(config, logger, credentials);
   await store.init();
   registry = new Registry(store.config, logger);
   await registry.initialize();
 
-  const { app, close } = createHttpApp({ config: store.config, registry, store, logger, startedAt: Date.now(), version: "test" });
+  const { app, close } = createHttpApp({
+    config: store.config,
+    registry,
+    store,
+    credentials,
+    transforms,
+    logger,
+    startedAt: Date.now(),
+    version: "test",
+  });
   appClose = close;
   httpServer = createServer(app);
   await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
@@ -160,6 +178,196 @@ test("pasted OpenAPI documents are stored next to the config", async () => {
   const entry = saved.apis.find((api: any) => api.name === "pasted");
   assert.ok(entry.spec.endsWith(".json"), entry.spec);
   assert.ok(path.isAbsolute(entry.spec));
+});
+
+test("the admin tester lists every tool of a source and invokes them one by one", async () => {
+  const listing = await fetch(`${base}/admin/api/sources/api/petstore/tools`, { headers: authHeaders() }).then((r) => r.json());
+  assert.equal(listing.ok, true);
+  assert.equal(listing.kind, "api");
+  assert.equal(listing.count, 4);
+  const listPets = listing.tools.find((tool: any) => tool.name === "listPets");
+  assert.ok(listPets);
+  assert.equal(listPets.fullName, "petstore__listPets");
+  assert.equal(listPets.method, "GET");
+  assert.equal(listPets.path, "/pets");
+  assert.ok(listPets.inputSchema);
+  assert.deepEqual(listPets.exposed, { rest: true, mcp: true });
+
+  const ok = await adminPost("/admin/api/invoke", { source: "petstore", tool: "listPets", arguments: { limit: 1 } });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.ok, true);
+  assert.equal(ok.json.isError, false);
+  assert.equal(ok.json.data.items.length, 1);
+  assert.equal(ok.json.method, "GET");
+  assert.equal(ok.json.path, "/pets");
+  assert.equal(typeof ok.json.durationMs, "number");
+  assert.ok(ok.json.invokedAt);
+
+  const byFullName = await adminPost("/admin/api/invoke", { source: "petstore", tool: "petstore__listPets", arguments: {} });
+  assert.equal(byFullName.status, 200);
+  assert.equal(byFullName.json.tool, "listPets");
+
+  const invalid = await adminPost("/admin/api/invoke", { source: "petstore", tool: "listPets", arguments: { limit: "nope" } });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.json.error, "invalid_arguments");
+
+  const unknownTool = await adminPost("/admin/api/invoke", { source: "petstore", tool: "nope", arguments: {} });
+  assert.equal(unknownTool.status, 404);
+  assert.equal(unknownTool.json.error, "unknown_tool");
+
+  const unknownSource = await adminPost("/admin/api/invoke", { source: "ghost", tool: "listPets" });
+  assert.equal(unknownSource.status, 404);
+
+  const mismatch = await fetch(`${base}/admin/api/sources/mcp/petstore/tools`, { headers: authHeaders() });
+  assert.equal(mismatch.status, 400);
+  assert.equal((await mismatch.json()).error, "kind_mismatch");
+
+  const wrongKind = await fetch(`${base}/admin/api/sources/bogus/petstore/tools`, { headers: authHeaders() });
+  assert.equal(wrongKind.status, 400);
+
+  const missing = await fetch(`${base}/admin/api/sources/api/ghost/tools`, { headers: authHeaders() });
+  assert.equal(missing.status, 404);
+
+  const mcpListing = await fetch(`${base}/admin/api/sources/mcp/echo/tools`, { headers: authHeaders() }).then((r) => r.json());
+  assert.equal(mcpListing.ok, true);
+  assert.equal(mcpListing.count, 4);
+  assert.ok(mcpListing.tools.some((tool: any) => tool.name === "add"));
+
+  const added = await adminPost("/admin/api/invoke", { source: "echo", tool: "add", arguments: { a: 2, b: 3 } });
+  assert.equal(added.status, 200);
+  assert.equal(added.json.ok, true);
+  assert.equal(added.json.data, 5);
+  assert.equal(added.json.method, undefined);
+});
+
+test("tools converted from Swagger 2.0 are listed for testing with method and path", async () => {
+  const created = await adminPost("/admin/api/sources", {
+    kind: "api",
+    entry: { name: "swagger-pets", spec: path.resolve("test/fixtures/swagger2.fixture.json") },
+  });
+  assert.equal(created.status, 200);
+
+  const listing = await fetch(`${base}/admin/api/sources/api/swagger-pets/tools`, { headers: authHeaders() }).then((r) =>
+    r.json(),
+  );
+  assert.equal(listing.count, 5);
+  for (const tool of listing.tools) {
+    assert.equal(typeof tool.method, "string");
+    assert.equal(typeof tool.path, "string");
+    assert.ok(tool.path.startsWith("/"));
+  }
+});
+
+test("saved credentials are reused by sources and injected into upstream requests", async () => {
+  const created = await adminPost("/admin/api/credentials", {
+    credential: { name: "pet-header", type: "header", key: "X-Extra-Key", value: "header-secret", note: "测试用" },
+  });
+  assert.equal(created.status, 200);
+  assert.equal(created.json.ok, true);
+  assert.equal(created.json.credential.hasValue, true);
+  assert.ok(!JSON.stringify(created.json).includes("header-secret"));
+
+  const listed = await fetch(`${base}/admin/api/credentials`, { headers: authHeaders() }).then((r) => r.json());
+  assert.equal(listed.credentials.length, 1);
+  assert.ok(!JSON.stringify(listed).includes("header-secret"));
+
+  const invalid = await adminPost("/admin/api/credentials", { credential: { name: "../bad", type: "bearer", value: "x" } });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.json.error, "invalid_credential");
+
+  // A source that references the credential by name.
+  const source = await adminPost("/admin/api/sources", {
+    kind: "api",
+    entry: {
+      name: "petstore-cred",
+      spec: specPath,
+      baseUrl: mock.url,
+      credentialRefs: ["pet-header"],
+    },
+  });
+  assert.equal(source.status, 200);
+  assert.equal(source.json.source.toolCount, 4);
+
+  const call = await adminPost("/admin/api/invoke", { source: "petstore-cred", tool: "listPets", arguments: { limit: 1 } });
+  assert.equal(call.status, 200);
+  assert.equal(call.json.ok, true);
+  const last = mock.requests[mock.requests.length - 1];
+  assert.equal(last.headers["x-extra-key"], "header-secret");
+
+  const usage = await fetch(`${base}/admin/api/credentials`, { headers: authHeaders() }).then((r) => r.json());
+  assert.deepEqual(usage.credentials[0].usedBy, ["petstore-cred"]);
+
+  const removed = await fetch(`${base}/admin/api/credentials/pet-header`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  }).then((r) => r.json());
+  assert.equal(removed.ok, true);
+
+  const gone = await fetch(`${base}/admin/api/credentials/pet-header`, { method: "DELETE", headers: authHeaders() });
+  assert.equal(gone.status, 404);
+});
+
+test("response transforms reshape what the REST surface returns", async () => {
+  const config = {
+    blocks: [
+      { op: "field", from: "items", as: "pets" },
+      { op: "count", from: "items", as: "count" },
+      { op: "constant", as: "source", value: "petstore-cred" },
+      { op: "now", as: "generatedAt", format: "iso" },
+      { op: "text", as: "headline", template: "共 {{items}} 条" },
+    ],
+  };
+
+  const preview = await adminPost("/admin/api/transforms/preview", {
+    config,
+    sample: { items: [{ id: 1 }, { id: 2 }] },
+  });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.json.value.count, 2);
+  assert.equal(preview.json.value.pets.length, 2);
+
+  const saved = await fetch(`${base}/admin/api/transforms`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ source: "petstore-cred", tool: "listPets", config }),
+  }).then((r) => r.json());
+  assert.equal(saved.ok, true);
+  assert.equal(saved.transform.tool, "listPets");
+
+  const invalid = await fetch(`${base}/admin/api/transforms`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ source: "petstore-cred", tool: "listPets", config: { blocks: [{ op: "nope" }] } }),
+  });
+  assert.equal(invalid.status, 400);
+
+  const rest = await fetch(`${base}/api/petstore-cred/listPets?limit=1`).then((r) => r.json());
+  assert.equal(rest.ok, true);
+  assert.equal(rest.transformed, true);
+  assert.equal(rest.data.count, 1);
+  assert.equal(rest.data.pets[0].name, "Rex");
+  assert.equal(rest.data.source, "petstore-cred");
+  assert.ok(rest.data.generatedAt);
+  assert.ok(!("items" in rest.data));
+
+  // The admin tester can still ask for the raw upstream payload.
+  const raw = await adminPost("/admin/api/invoke", { source: "petstore-cred", tool: "listPets", arguments: { limit: 1 }, raw: true });
+  assert.equal(raw.status, 200);
+  assert.equal(raw.json.transformed, undefined);
+  assert.equal(raw.json.data.items.length, 1);
+
+  const listed = await fetch(`${base}/admin/api/transforms`, { headers: authHeaders() }).then((r) => r.json());
+  assert.ok(listed.transforms.some((item: any) => item.source === "petstore-cred" && item.tool === "listPets"));
+
+  const removed = await fetch(`${base}/admin/api/transforms/petstore-cred/listPets`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  }).then((r) => r.json());
+  assert.equal(removed.ok, true);
+
+  const afterDelete = await fetch(`${base}/api/petstore-cred/listPets?limit=1`).then((r) => r.json());
+  assert.equal(afterDelete.transformed, undefined);
+  assert.equal(afterDelete.data.items.length, 1);
 });
 
 test("/admin/api/test validates a source without saving it", async () => {

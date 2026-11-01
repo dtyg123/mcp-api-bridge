@@ -58,6 +58,8 @@ export type ApiConfig = {
   headers: Record<string, string>;
   /** Per-securityScheme credentials, keyed by scheme name. */
   security: Record<string, SecurityCredential>;
+  /** Names of saved credentials (管理台「认证信息」) merged into `headers`. */
+  credentialRefs: string[];
   include?: string[];
   exclude?: string[];
   exposure: ExposureConfig;
@@ -222,6 +224,7 @@ export function normalizeApi(raw: unknown, index: number, configDir: string): Ap
     baseUrl: raw.baseUrl ? asString(raw.baseUrl) : undefined,
     headers: asStringMap(raw.headers),
     security,
+    credentialRefs: asStringArray(raw.credentialRefs) ?? [],
     include: asStringArray(raw.include),
     exclude: asStringArray(raw.exclude),
     exposure: normalizeExposure(raw.exposure, ""),
@@ -338,11 +341,15 @@ export function emptyManagedPayload(): ManagedPayload {
  * Overlay sources added through the web UI on top of the file-based config.
  * Entries with the same name replace the file-based one (so the UI can also
  * "take over" a source that was originally written by hand).
+ *
+ * `resolveCredentialHeaders` materializes `apis[].credentialRefs` (saved
+ * credentials from the admin vault) into request headers.
  */
 export function mergeSources(
   base: BridgeConfig,
   managed: ManagedPayload,
   onWarning?: (message: string) => void,
+  options?: { resolveCredentialHeaders?: (names: string[]) => Record<string, string>; onMissingCredential?: (name: string) => void },
 ): BridgeConfig {
   const mcpServers = [...base.mcpServers];
   managed.mcpServers.forEach((raw, index) => {
@@ -368,5 +375,29 @@ export function mergeSources(
     }
   });
 
-  return { ...base, mcpServers, apis };
+  return { ...base, mcpServers, apis: applyCredentialRefs(apis, options) };
+}
+
+/** Merge saved credentials into the headers of every API that references them. */
+export function applyCredentialRefs(
+  apis: ApiConfig[],
+  options?: { resolveCredentialHeaders?: (names: string[]) => Record<string, string>; onMissingCredential?: (name: string) => void },
+): ApiConfig[] {
+  const resolve = options?.resolveCredentialHeaders;
+  if (!resolve) return apis;
+  return apis.map((api) => {
+    if (!Array.isArray(api.credentialRefs) || api.credentialRefs.length === 0) return api;
+    const fromVault = resolve(api.credentialRefs);
+    if (Object.keys(fromVault).length === 0) return api;
+    const headers: Record<string, string> = { ...fromVault };
+    // Explicit headers win, and drop the same header in a different casing so
+    // the upstream never receives the key twice.
+    for (const [key, value] of Object.entries(api.headers)) {
+      for (const existing of Object.keys(headers)) {
+        if (existing.toLowerCase() === key.toLowerCase()) delete headers[existing];
+      }
+      headers[key] = value;
+    }
+    return { ...api, headers };
+  });
 }

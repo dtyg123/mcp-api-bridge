@@ -3,10 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from "express";
 import type { BridgeConfig } from "../config.js";
-import { ConfigError } from "../config.js";
+import { ConfigError, applyCredentialRefs, type ApiConfig } from "../config.js";
 import { buildPrompt, type PromptKind } from "../admin/prompts.js";
 import { testSource } from "../admin/service.js";
+import { maskCredential, type CredentialStore } from "../admin/credentials.js";
 import type { SourceKind, SourceStore } from "../admin/store.js";
+import { applyTransform, type TransformConfig, type TransformStore } from "../admin/transforms.js";
 import { buildOpenApiDocument } from "../convert/tools-to-openapi.js";
 import { createGatewayServer, describeTools } from "../mcp/gateway.js";
 import type { Registry } from "../registry.js";
@@ -14,6 +16,7 @@ import { coerceQueryArgs, validateArgs } from "../util/args.js";
 import { ToolArgumentError } from "../util/errors.js";
 import { isPlainObject, safeJsonParse } from "../util/json.js";
 import type { Logger } from "../util/logger.js";
+import type { BridgeTool, ToolResult } from "../types.js";
 import { SERVER_NAME, VERSION } from "../version.js";
 import { McpHttpEndpoint } from "./mcp-endpoint.js";
 
@@ -22,6 +25,10 @@ export type GatewayRuntime = {
   registry: Registry;
   /** Persists sources added through the web UI. */
   store: SourceStore;
+  /** Reusable authentication material (管理台「认证信息」). */
+  credentials: CredentialStore;
+  /** Per-tool response reshaping (管理台「数据编排」). */
+  transforms: TransformStore;
   logger: Logger;
   startedAt: number;
   version: string;
@@ -64,11 +71,65 @@ function textOf(result: { content: ReadonlyArray<{ type: string; text?: unknown 
     .join("\n\n");
 }
 
+/** Uniform response envelope shared by the REST surface and the admin tester. */
+function toolEnvelope(tool: BridgeTool, result: ToolResult): Record<string, unknown> {
+  const text = textOf(result);
+  const data =
+    result.structuredContent !== undefined
+      ? result.structuredContent
+      : (() => {
+          const parsed = safeJsonParse(text);
+          return parsed.ok ? parsed.value : text;
+        })();
+  return {
+    ok: result.isError !== true,
+    source: tool.source,
+    tool: tool.originalName,
+    name: tool.name,
+    isError: result.isError === true,
+    text,
+    data,
+    content: result.content,
+    meta: result.meta,
+  };
+}
+
+/** HTTP method + path for OpenAPI-backed tools (undefined for MCP tools). */
+function toolHttpMeta(tool: BridgeTool): { method?: string; path?: string } {
+  const meta = tool as { method?: unknown; pathTemplate?: unknown };
+  if (typeof meta.method !== "string" || typeof meta.pathTemplate !== "string") return {};
+  return { method: meta.method.toUpperCase(), path: meta.pathTemplate };
+}
+
 export function createHttpApp(runtime: GatewayRuntime): HttpApp {
-  const { config, registry, store, logger } = runtime;
+  const { config, registry, store, credentials, transforms, logger } = runtime;
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", true);
+
+  /**
+   * Envelope + optional 数据编排 transform. The transform replaces `data`
+   * (and its text projection) with the blocks the user configured, so an API
+   * consumer only sees the fields the admin decided to expose.
+   */
+  const envelopeFor = (tool: BridgeTool, result: ToolResult): Record<string, unknown> => {
+    const envelope = toolEnvelope(tool, result);
+    const transform = transforms.get(tool.source, tool.originalName);
+    if (!transform) return envelope;
+    try {
+      const { value } = applyTransform(transform, envelope.data);
+      return {
+        ...envelope,
+        data: value,
+        text: typeof value === "string" ? value : JSON.stringify(value, null, 2),
+        transformed: true,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Transform failed (${tool.source}/${tool.originalName}): ${message}`);
+      return { ...envelope, transformed: false, transformError: message };
+    }
+  };
 
   app.use(
     express.json({
@@ -248,26 +309,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     }
 
     try {
-      const result = await tool.invoke(args);
-      const text = textOf(result);
-      const data =
-        result.structuredContent !== undefined
-          ? result.structuredContent
-          : (() => {
-              const parsed = safeJsonParse(text);
-              return parsed.ok ? parsed.value : text;
-            })();
-      res.json({
-        ok: result.isError !== true,
-        source: tool.source,
-        tool: tool.originalName,
-        name: tool.name,
-        isError: result.isError === true,
-        text,
-        data,
-        content: result.content,
-        meta: result.meta,
-      });
+      res.json(envelopeFor(tool, await tool.invoke(args)));
     } catch (error) {
       if (error instanceof ToolArgumentError) {
         res.status(400).json({ ok: false, error: "invalid_arguments", message: error.message });
@@ -381,6 +423,10 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
         tokenRequired: adminAuthRequired,
         storeFile: store.filePath,
         specsDir: store.specsDir,
+        credentialsFile: credentials.filePath,
+        transformsFile: transforms.filePath,
+        credentialCount: credentials.list().length,
+        transformCount: transforms.list().length,
       },
     });
   });
@@ -398,6 +444,217 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
         apis: store.listManaged("api"),
       },
     });
+  });
+
+  /**
+   * Tools of one source, with schemas, for the admin "接口测试" panel.
+   * Unlike `/tools` this ignores the exposure flags so a source can be tested
+   * before it is publicly exposed.
+   */
+  router.get(`${adminApi}/sources/:kind/:name/tools`, adminAuth, (req: Request, res: Response) => {
+    const kind = kindOf(req.params.kind);
+    if (!kind) {
+      res.status(400).json({ ok: false, error: "invalid_kind", message: 'kind 必须是 "mcp" 或 "api"。' });
+      return;
+    }
+    const source = registry.getSource(req.params.name);
+    if (!source) {
+      res.status(404).json({ ok: false, error: "unknown_source", message: `没有名为 "${req.params.name}" 的来源。` });
+      return;
+    }
+    if ((kind === "mcp" ? "mcp" : "openapi") !== source.type) {
+      res.status(400).json({ ok: false, error: "kind_mismatch", message: `来源 "${source.name}" 的类型是 ${source.type}。` });
+      return;
+    }
+    const tools = registry.getToolsForSource(source.name).map((tool) => ({
+      name: tool.originalName,
+      fullName: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      annotations: tool.annotations,
+      ...toolHttpMeta(tool),
+      exposed: { rest: registry.isExposed(tool, "rest"), mcp: registry.isExposed(tool, "mcp") },
+    }));
+    res.json({ ok: true, source: source.name, kind, type: source.type, count: tools.length, tools });
+  });
+
+  /** Invoke a single tool on behalf of the admin UI ("逐项测试"). */
+  router.post(`${adminApi}/invoke`, adminAuth, async (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) ? req.body : {};
+    const source = typeof body.source === "string" ? body.source : "";
+    const identifier = typeof body.tool === "string" ? body.tool : "";
+    if (!source || !identifier) {
+      res.status(400).json({ ok: false, error: "invalid_request", message: "需要 source 和 tool。" });
+      return;
+    }
+    const tool = registry.findTool(source, identifier);
+    if (!tool) {
+      res.status(404).json({ ok: false, error: "unknown_tool", message: `来源 "${source}" 上没有工具 "${identifier}"。` });
+      return;
+    }
+    const args = isPlainObject(body.arguments) ? body.arguments : {};
+    const issues = validateArgs(tool.inputSchema, args);
+    if (issues.length > 0) {
+      res.status(400).json({ ok: false, error: "invalid_arguments", issues, inputSchema: tool.inputSchema });
+      return;
+    }
+
+    const startedAt = Date.now();
+    try {
+      const result = await tool.invoke(args);
+      const raw = isPlainObject(body) && body.raw === true;
+      const payload = raw ? toolEnvelope(tool, result) : envelopeFor(tool, result);
+      res.json({
+        ...payload,
+        ...toolHttpMeta(tool),
+        durationMs: Date.now() - startedAt,
+        invokedAt: new Date(startedAt).toISOString(),
+      });
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      if (error instanceof ToolArgumentError) {
+        res.status(400).json({ ok: false, error: "invalid_arguments", message: error.message, durationMs });
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Admin invocation failed (${source}/${identifier}): ${message}`);
+      res.status(502).json({ ok: false, error: "upstream_error", message, durationMs });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 认证信息 (credential vault)
+  // ---------------------------------------------------------------------------
+
+  /** Sources that reference a saved credential, for the UI "used by" column. */
+  const credentialUsage = (): Record<string, string[]> => {
+    const usage: Record<string, string[]> = {};
+    for (const api of store.config.apis) {
+      for (const name of api.credentialRefs ?? []) {
+        (usage[name] ??= []).push(api.name);
+      }
+    }
+    return usage;
+  };
+
+  const reloadAfterVaultChange = async (): Promise<void> => {
+    store.rebuildNow();
+    registry.setConfig(store.config);
+    await registry.reload();
+  };
+
+  router.get(`${adminApi}/credentials`, adminAuth, (_req, res) => {
+    const usage = credentialUsage();
+    res.json({
+      ok: true,
+      file: credentials.filePath,
+      credentials: credentials.list().map((credential) => ({
+        ...maskCredential(credential),
+        usedBy: usage[credential.name] ?? [],
+      })),
+    });
+  });
+
+  router.post(`${adminApi}/credentials`, adminAuth, async (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) ? req.body : {};
+    const payload = isPlainObject(body.credential) ? body.credential : body;
+    try {
+      const saved = await credentials.upsert(payload);
+      await reloadAfterVaultChange();
+      res.json({
+        ok: true,
+        credential: { ...maskCredential(saved), usedBy: credentialUsage()[saved.name] ?? [] },
+      });
+    } catch (error) {
+      if (error instanceof ConfigError) {
+        res.status(400).json({ ok: false, error: "invalid_credential", message: error.message });
+        return;
+      }
+      throw error;
+    }
+  });
+
+  router.delete(`${adminApi}/credentials/:name`, adminAuth, async (req: Request, res: Response) => {
+    const removed = await credentials.remove(req.params.name);
+    if (!removed) {
+      res.status(404).json({ ok: false, error: "unknown_credential", message: `没有名为 "${req.params.name}" 的认证信息。` });
+      return;
+    }
+    await reloadAfterVaultChange();
+    res.json({ ok: true, name: req.params.name, usedBy: credentialUsage()[req.params.name] ?? [] });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 数据编排 (response transforms)
+  // ---------------------------------------------------------------------------
+
+  const readTransformTarget = (body: Record<string, unknown>): { source: string; tool: string } => {
+    const source = typeof body.source === "string" ? body.source.trim() : "";
+    const tool = typeof body.tool === "string" && body.tool.trim() ? body.tool.trim() : "*";
+    return { source, tool };
+  };
+
+  router.get(`${adminApi}/transforms`, adminAuth, (_req, res) => {
+    res.json({
+      ok: true,
+      file: transforms.filePath,
+      transforms: transforms.list(),
+      sources: sourceSummaries(),
+    });
+  });
+
+  router.get(`${adminApi}/transforms/:source/:tool`, adminAuth, (req: Request, res: Response) => {
+    const entry = transforms.list().find((item) => item.source === req.params.source && item.tool === req.params.tool);
+    if (!entry) {
+      res.status(404).json({ ok: false, error: "unknown_transform", message: "该接口还没有配置数据编排。" });
+      return;
+    }
+    res.json({ ok: true, transform: entry });
+  });
+
+  router.put(`${adminApi}/transforms`, adminAuth, async (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) ? req.body : {};
+    const { source, tool } = readTransformTarget(body);
+    if (!source) {
+      res.status(400).json({ ok: false, error: "invalid_request", message: "需要 source。" });
+      return;
+    }
+    try {
+      const entry = await transforms.upsert(source, tool, body.config ?? body);
+      res.json({ ok: true, transform: entry });
+    } catch (error) {
+      if (error instanceof ConfigError) {
+        res.status(400).json({ ok: false, error: "invalid_transform", message: error.message });
+        return;
+      }
+      throw error;
+    }
+  });
+
+  router.delete(`${adminApi}/transforms/:source/:tool`, adminAuth, async (req: Request, res: Response) => {
+    const removed = await transforms.remove(req.params.source, req.params.tool);
+    if (!removed) {
+      res.status(404).json({ ok: false, error: "unknown_transform", message: "该接口没有配置数据编排。" });
+      return;
+    }
+    res.json({ ok: true, source: req.params.source, tool: req.params.tool });
+  });
+
+  /** Try a transform on a sample payload without saving it (UI live preview). */
+  router.post(`${adminApi}/transforms/preview`, adminAuth, (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) ? req.body : {};
+    try {
+      const config = body.config ?? body;
+      const result = applyTransform(config as TransformConfig, body.sample);
+      res.json({ ok: true, value: result.value, source: result.from });
+    } catch (error) {
+      if (error instanceof ConfigError) {
+        res.status(400).json({ ok: false, error: "invalid_transform", message: error.message });
+        return;
+      }
+      throw error;
+    }
   });
 
   router.post(`${adminApi}/sources`, adminAuth, async (req: Request, res: Response) => {
@@ -474,6 +731,13 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
         payload = { ...rest, spec: specPath };
       }
       normalized = store.normalize(kind, payload);
+      // Make "测试导入" behave like the live source: saved credentials are
+      // materialized into headers before the upstream is called.
+      if (kind === "api") {
+        normalized = applyCredentialRefs([normalized as ApiConfig], {
+          resolveCredentialHeaders: (names) => credentials.headersFor(names),
+        })[0];
+      }
     } catch (error) {
       res.status(400).json({
         ok: false,

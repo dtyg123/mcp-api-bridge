@@ -20,7 +20,8 @@ TypeScript 实现，单进程、单个 Docker 镜像、HTTP 与 stdio 双形态�
 - **双向**：MCP → REST/OpenAPI，API → MCP，同一份注册表同时对外提供两套接口
 - **文档通吃**：OpenAPI 3.0 / 3.1，以及**自动转换的 Swagger 2.0**（`in: body`、`definitions`、`securityDefinitions`，实测雨云 API 217 个操作）
 - **零配置接入**：`spec` 支持 URL / 本地文件 / 粘贴文本，`$ref` 自动内联（含外部引用、JSON/YAML）
-- **Web 管理台**：可视化添加来源、测试连通性、编辑凭证、生成可直接粘给 AI 的接入提示词
+- **Web 管理台**：可视化添加来源、逐项测试接口、管理可复用的「认证信息」、用积木编排返回数据、生成可直接粘给 AI 的接入提示词
+- **数据编排**：响应到达调用方前按积木重组——挑字段、改名、补当前时间 / 固定文本 / 计数，无需改上游或写代码
 - **原生 MCP**：Streamable HTTP（stateful / stateless）、单来源端点 `/mcp/{source}`、stdio 模式
 - **部署友好**：单镜像、非 root、健康检查、`data/` 卷持久化、环境变量插值，上游挂了网关照常启动（降级）
 
@@ -101,6 +102,11 @@ POST /mcp                       聚合 MCP 端点（Streamable HTTP）
 POST /mcp/{source}              单个来源的 MCP 端点
 GET  /admin                     Web 管理台（添加来源 / 测试 / 生成接入提示词）
 POST /admin/reload              重新加载 spec / 刷新上游工具列表
+GET  /admin/api/credentials     认证信息列表（值已掩码）
+POST /admin/api/credentials     新增 / 更新认证信息
+GET  /admin/api/transforms      数据编排列表
+PUT  /admin/api/transforms      保存某来源 / 接口的编排
+POST /admin/api/transforms/preview   用示例响应试算编排（不保存）
 ```
 
 ---
@@ -111,8 +117,11 @@ POST /admin/reload              重新加载 spec / 刷新上游工具列表
 
 | 页面 | 作用 |
 | --- | --- |
-| **概览** | 来源列表：类型、状态、工具数、是否来自管理台；每行可「测试 / 编辑 / 提示词 / 删除」 |
-| **添加来源** | MCP（stdio / Streamable HTTP / SSE）与 OpenAPI 两个表单，保存后**立即生效**，无需重启 |
+| **概览** | 来源列表：类型、状态、工具数、是否来自管理台；每行可「测试 / 接口 / 编排 / 编辑 / 提示词 / 删除」 |
+| **接口测试** | 逐项调用某个来源的每个接口，填写参数、查看真实响应（请求会真实发往上游） |
+| **添加来源** | MCP（stdio / Streamable HTTP / SSE）与 OpenAPI 两个表单，保存后**立即生效**，无需重启；OpenAPI 表单可直接勾选「认证信息」 |
+| **认证信息** | 可复用的请求头 / Bearer / Basic 凭证；值保存在服务器本地并始终以掩码显示，来源按名称引用 |
+| **数据编排** | 用积木重组接口返回：取字段、改名、拼模板、加当前时间 / 固定值、计数、逐项编排；带示例响应实时预览 |
 | **接入提示词** | 四类提示词一键复制：① 让 AI 通过 MCP 接入 ② 让 AI 通过 REST/OpenAPI 接入 ③ 让 AI 生成「新增 MCP 来源」配置 ④ 让 AI 生成「新增 OpenAPI 来源」配置 |
 | **JSON 导入** | 粘贴单条 `{ "type": "mcp" \\| "api", ... }`、批量 `{ mcpServers: [], apis: [] }`，或直接粘贴 Claude Desktop / Cursor 的 `mcpServers` 配置 |
 
@@ -121,6 +130,7 @@ POST /admin/reload              重新加载 spec / 刷新上游工具列表
 - 管理台新增的来源写入 `data/managed-sources.json`（`server.admin.storeFile` / `BRIDGE_DATA_DIR` 可改位置），**不会改写** `bridge.config.yaml`；同名条目以管理台版本为准，所以也能「接管」手写来源。
 - 删除只删除管理台条目；配置文件里声明的来源会提示你去改 YAML。
 - 「粘贴文档」方式添加 OpenAPI 时，文档会保存到 `data/specs/`，重启后依然可用。
+- 「认证信息」和「数据编排」分别持久化到 `data/credentials.json`、`data/transforms.json`（与 `managed-sources.json` 同目录），同样依赖挂载的 `data/` 卷。
 - 提示词里的端点、鉴权、工具清单都来自当前运行状态，复制即可粘给 Claude / Cursor / ChatGPT 等工具。
 
 > 公网部署务必设置 `server.adminToken`（或 `BRIDGE_ADMIN_TOKEN`），否则任何能访问 `/admin` 的人都能增删来源。页面里的 Token 只保存在浏览器 localStorage。
@@ -189,6 +199,7 @@ curl 'http://localhost:8080/api/filesystem/read_file?path=/data/notes.md'
 
 - `content` 是原始 MCP 内容块（text / image / resource …），不做信息丢失
 - `data` 是结构化载荷：`structuredContent`，或能被 JSON 解析的文本，否则为原文
+- 配置了「数据编排」时，`data` / `text` 会被积木重新组装，并附带 `transformed: true`（详见下文）
 - 工具级失败（MCP `isError: true`）返回 **HTTP 200 + `ok: false`**，与 MCP 语义一致；网关级错误用 400 / 404 / 502
 - 同时 `GET /openapi.json` 会自动生成完整 OpenAPI 文档，可直接导入 Postman、Dify、ChatGPT Actions 等
 
@@ -267,6 +278,94 @@ docker run -i --rm \
   }
 }
 ```
+
+---
+
+## 认证信息（可复用凭证）
+
+管理台「认证信息」页把密钥集中保存成**命名凭证**，来源只需按名称引用。轮换密钥时改一处，所有引用它的来源立即生效，不用重写配置。
+
+| 类型 | 生成的请求头 | 字段 |
+| --- | --- | --- |
+| `header` | `<key>: <value>` | `key`（如 `X-Api-Key`）、`value` |
+| `bearer` | `Authorization: Bearer <value>` | `value` |
+| `basic` | `Authorization: Basic base64(user:pass)` | `username`、`password` |
+
+列表接口永远只返回掩码（`se••••23`）；编辑时留空表示「保持原值」。凭证保存在 `data/credentials.json`，引用关系可以写进 YAML：
+
+```yaml
+apis:
+  - name: rainyun
+    spec: https://api.rainyun.com/openapi.json
+    credentialRefs: [rainyun]      # 引用「认证信息」里名为 rainyun 的凭证
+    headers:                        # 显式请求头优先，同名（忽略大小写）只保留一份
+      User-Agent: mcp-api-bridge
+```
+
+管理台新增 / 编辑来源时也可以直接勾选凭证；保存后立即重建配置并重新加载上游。
+
+---
+
+## 数据编排（响应积木）
+
+「数据编排」在响应到达调用方之前重新组装数据：挑出需要的字段、改名、补上当前时间或固定文本，适合把上游的原始响应整理成前端 / AI 直接可用的形状。
+
+配置以 `source + tool` 为键（`tool: "*"` 是该来源全部接口的默认规则），保存在 `data/transforms.json`，只作用于 **REST 面**（`/api/{source}/{tool}`）和管理台「接口测试」；MCP 面的 `structuredContent` 保持原样。
+
+```json
+{
+  "root": "data",
+  "passthrough": false,
+  "blocks": [
+    {
+      "op": "each",
+      "from": "",
+      "as": "items",
+      "blocks": [
+        { "op": "field", "from": "Title", "as": "title" },
+        { "op": "field", "from": "TimeStamp", "as": "time" }
+      ]
+    },
+    { "op": "count", "from": "", "as": "total" },
+    { "op": "now", "as": "fetchedAt", "format": "iso" }
+  ]
+}
+```
+
+对应 REST 返回：
+
+```json
+{
+  "ok": true,
+  "source": "petstore",
+  "tool": "get_news",
+  "transformed": true,
+  "data": {
+    "items": [{ "title": "……", "time": "2026-10-04T09:52:13.654Z" }],
+    "total": 10,
+    "fetchedAt": "2026-11-01T04:08:37.457Z"
+  }
+}
+```
+
+| 积木（`op`） | 作用 | 参数 |
+| --- | --- | --- |
+| `field` | 取一个字段，可改名 | `from`、`as`（留空 = 同名） |
+| `text` | 模板文本，`{{path}}` 用数据填充 | `as`、`template` |
+| `constant` | 固定值（字符串 / 数字 / JSON 对象） | `as`、`value` |
+| `now` | 当前时间 | `as`、`format`（`iso` / `date` / `time` / `timestamp` / `locale`）、`offsetSeconds` |
+| `count` | 数组长度 / 对象键数（其它值返回 0 或 1） | `from`、`as` |
+| `join` | 把数组拼成字符串 | `from`、`as`、`separator` |
+| `omit` | 删掉一个字段（配合 `passthrough`） | `from` |
+| `each` | 对数组每个元素执行一组子积木 | `from`、`as`、`blocks` |
+
+几点约定：
+
+- `root` 为空表示整个 `data` 载荷；`from` 留空表示「当前根」，所以 `root` 指向数组时可以用 `count` / `each` 直接处理整个数组。
+- 没被积木选中的字段默认丢弃；`passthrough: true` 保留原字段，再用 `omit` 删掉敏感字段。
+- 子积木最多嵌套 5 层；每层的路径都相对于它处理的那个元素。
+- 编排本身出错不会吞掉响应：封装里会带 `transformed: false` 和 `transformError`，同时仍然返回原数据。
+- 管理台「接口测试」可以传 `raw: true` 查看未编排的原始响应。
 
 ---
 
@@ -392,6 +491,12 @@ src/
     loader.ts              文档加载、baseUrl 解析
   upstream/mcp.ts          MCP 客户端（stdio / Streamable HTTP / SSE）
   mcp/gateway.ts           聚合 MCP Server（动态 tools/list + tools/call）
+  admin/
+    store.ts               来源持久化与热重载（managed-sources.json）
+    credentials.ts         认证信息保险库（credentials.json）
+    transforms.ts          数据编排积木引擎（transforms.json）
+    service.ts             来源连通性测试
+    prompts.ts             接入提示词生成
   http/
     server.ts             Express 路由、鉴权、REST/RPC 封装
     mcp-endpoint.ts       Streamable HTTP 会话管理（stateful / stateless）

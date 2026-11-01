@@ -7,7 +7,9 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { CredentialStore } from "../src/admin/credentials.js";
 import { SourceStore } from "../src/admin/store.js";
+import { TransformStore } from "../src/admin/transforms.js";
 import { loadConfig } from "../src/config.js";
 import { createHttpApp } from "../src/http/server.js";
 import { Registry } from "../src/registry.js";
@@ -17,6 +19,8 @@ import { startMockApi, type MockApi } from "./helpers/mock-api.js";
 let mock: MockApi;
 let registry: Registry;
 let store: SourceStore;
+let credentials: CredentialStore;
+let transforms: TransformStore;
 let httpServer: Server;
 let appClose: () => Promise<void>;
 let base: string;
@@ -55,12 +59,26 @@ before(async () => {
 
   config = await loadConfig(configPath);
   const logger = new Logger("error", "text", "test");
-  store = new SourceStore(config, logger);
+  const dataDir = path.join(tempDir, "data");
+  credentials = new CredentialStore(path.join(dataDir, "credentials.json"), logger);
+  await credentials.init();
+  transforms = new TransformStore(path.join(dataDir, "transforms.json"), logger);
+  await transforms.init();
+  store = new SourceStore(config, logger, credentials);
   await store.init();
   registry = new Registry(store.config, logger);
   await registry.initialize();
 
-  const { app, close } = createHttpApp({ config: store.config, registry, store, logger, startedAt: Date.now(), version: "test" });
+  const { app, close } = createHttpApp({
+    config: store.config,
+    registry,
+    store,
+    credentials,
+    transforms,
+    logger,
+    startedAt: Date.now(),
+    version: "test",
+  });
   appClose = close;
   httpServer = createServer(app);
   await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
@@ -248,7 +266,16 @@ test("stateless MCP mode works without session ids", async () => {
     server: { ...config.server, mcp: { ...config.server.mcp, sessionMode: "stateless" as const } },
   };
   const logger = new Logger("error", "text", "test");
-  const { app, close } = createHttpApp({ config: statelessConfig, registry, store, logger, startedAt: Date.now(), version: "test" });
+  const { app, close } = createHttpApp({
+    config: statelessConfig,
+    registry,
+    store,
+    credentials,
+    transforms,
+    logger,
+    startedAt: Date.now(),
+    version: "test",
+  });
   const server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const statelessBase = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

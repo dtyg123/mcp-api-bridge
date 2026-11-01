@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { createServer, type Server as HttpServer } from "node:http";
+import path from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CredentialStore } from "./admin/credentials.js";
 import { SourceStore } from "./admin/store.js";
+import { TransformStore } from "./admin/transforms.js";
 import { loadConfig, type BridgeConfig } from "./config.js";
 import { createHttpApp } from "./http/server.js";
 import { createGatewayServer } from "./mcp/gateway.js";
@@ -142,9 +145,17 @@ async function main(): Promise<void> {
 
   const logger = new Logger(config.logging.level, config.logging.format, "bridge");
 
+  // Saved credentials ("认证信息") and response transforms ("数据编排") are
+  // stored next to the managed sources so the YAML config stays untouched.
+  const dataDir = path.dirname(config.server.admin.storeFile);
+  const credentials = new CredentialStore(path.join(dataDir, "credentials.json"), logger.child("credentials"));
+  await credentials.init();
+  const transforms = new TransformStore(path.join(dataDir, "transforms.json"), logger.child("transforms"));
+  await transforms.init();
+
   // Sources added through the web UI live in a separate JSON file so the
   // hand-written YAML config stays untouched. They are overlaid by name.
-  const store = new SourceStore(config, logger);
+  const store = new SourceStore(config, logger, credentials);
   await store.init();
   const effective = store.config;
 
@@ -201,7 +212,16 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runtime = { config: effective, registry, store, logger, startedAt: Date.now(), version: VERSION };
+  const runtime = {
+    config: effective,
+    registry,
+    store,
+    credentials,
+    transforms,
+    logger,
+    startedAt: Date.now(),
+    version: VERSION,
+  };
   const { app, close } = createHttpApp(runtime);
 
   const httpServer: HttpServer = createServer(app);

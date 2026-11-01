@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   ConfigError,
+  applyCredentialRefs,
   emptyManagedPayload,
   mergeSources,
   normalizeApi,
@@ -11,6 +12,7 @@ import {
   type McpServerConfig,
   type ApiConfig,
 } from "../config.js";
+import type { CredentialStore } from "./credentials.js";
 import { isPlainObject } from "../util/json.js";
 import type { Logger } from "../util/logger.js";
 
@@ -31,6 +33,8 @@ export class SourceStore {
   constructor(
     private readonly base: BridgeConfig,
     private readonly logger: Logger,
+    /** Optional vault of saved credentials referenced by `apis[].credentialRefs`. */
+    private readonly credentials?: CredentialStore,
   ) {
     this.effective = base;
   }
@@ -155,7 +159,27 @@ export class SourceStore {
   }
 
   private rebuild(): void {
-    this.effective = mergeSources(this.base, this.managed, (message) => this.logger.warn(message));
+    const effective = mergeSources(this.base, this.managed, (message) => this.logger.warn(message));
+    const credentials = this.credentials;
+    this.effective = credentials
+      ? {
+          ...effective,
+          apis: applyCredentialRefs(effective.apis, {
+            resolveCredentialHeaders: (names) => {
+              for (const name of credentials.missing(names)) {
+                this.logger.warn(`来源引用的认证信息 "${name}" 不存在，已忽略。`);
+              }
+              return credentials.headersFor(names);
+            },
+          }),
+        }
+      : effective;
+  }
+
+  /** Rebuild the effective config after the credential vault changed. */
+  rebuildNow(): BridgeConfig {
+    this.rebuild();
+    return this.effective;
   }
 
   private async persist(): Promise<void> {

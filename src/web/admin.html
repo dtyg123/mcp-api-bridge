@@ -174,6 +174,34 @@
       }
       .inline-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 10px; }
 
+      /* ---- 接口测试 ---- */
+      .tester { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+      .tester-side { position: sticky; top: 16px; }
+      .try-list { max-height: 56vh; overflow: auto; border: 1px solid var(--border-soft); border-radius: 10px; margin-top: 10px; }
+      .try-item { display: block; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--border-soft); border-radius: 0; background: transparent; padding: 8px 10px; }
+      .try-item:last-child { border-bottom: none; }
+      .try-item:hover { background: rgba(255,255,255,0.03); }
+      .try-item.active { background: rgba(109,140,255,0.12); box-shadow: inset 2px 0 0 var(--accent); }
+      .try-item .n { display: block; font-family: var(--mono); font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .try-item .d { display: block; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .try-head { display: flex; align-items: flex-start; gap: 10px; }
+      .try-head h2 { flex: 1; word-break: break-all; }
+      .method { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); letter-spacing: 0.04em; }
+      .method.get { color: var(--ok); border-color: rgba(53,211,154,0.34); }
+      .method.post { color: var(--accent); border-color: rgba(109,140,255,0.4); }
+      .method.put, .method.patch { color: #f0b429; border-color: rgba(240,180,41,0.35); }
+      .method.delete { color: var(--err); border-color: rgba(255,107,122,0.35); }
+      .try-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 14px; }
+      .try-form .field-span { grid-column: 1 / -1; }
+      .try-result { margin-top: 14px; }
+      .try-result .meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+      .try-result pre { max-height: 420px; }
+      .try-count { margin-top: 6px; }
+      @media (max-width: 900px) {
+        .tester { grid-template-columns: 1fr; }
+        .tester-side { position: static; }
+      }
+
       .toast {
         position: fixed; right: 20px; bottom: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px;
         pointer-events: none;
@@ -197,6 +225,44 @@
       .kv-row input { padding: 6px 9px; font-size: 12.5px; }
       .linkbtn { background: none; border: none; color: var(--accent); padding: 0; font-size: 12.5px; }
       .linkbtn:hover { text-decoration: underline; }
+      /* ---- 认证信息 ---- */
+      .vault-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr); gap: 16px; align-items: start; }
+      .vault-form { position: sticky; top: 16px; }
+      .cred-used { display: flex; gap: 4px; flex-wrap: wrap; }
+
+      /* ---- 数据编排 ---- */
+      .orchestrate { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+      .orchestrate-side { position: sticky; top: 16px; }
+      .block {
+        border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px 4px;
+        margin-bottom: 8px; background: var(--bg-soft);
+      }
+      .block-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+      .block-head .op { font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid rgba(109,140,255,0.32); border-radius: 999px; padding: 1px 8px; }
+      .block-head .grow { flex: 1; }
+      .block-actions { display: flex; gap: 5px; }
+      .block-actions button { padding: 2px 7px; font-size: 11.5px; }
+      .block-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 10px; }
+      .block-fields .wide { grid-column: 1 / -1; }
+      .block-fields label.field { margin-bottom: 8px; }
+      .block-fields label.field > span { font-size: 11.5px; }
+      .block-fields input, .block-fields select, .block-fields textarea { padding: 6px 9px; font-size: 12.5px; }
+      .block-fields textarea { min-height: 54px; }
+      .blocks-empty { color: var(--muted); font-size: 12.5px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; margin-bottom: 8px; text-align: center; }
+      .sub-blocks { margin: 2px 0 8px; padding-left: 10px; border-left: 2px solid var(--border); }
+      .sub-blocks .sub-title { font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+      .sub-add { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+      .sub-add select { width: auto; padding: 4px 8px; font-size: 12px; }
+      .sub-add button { padding: 4px 9px; font-size: 12px; }
+      .transform-list-item .n { display: flex; gap: 6px; align-items: center; }
+      @media (max-width: 980px) {
+        .vault-grid { grid-template-columns: 1fr; }
+        .vault-form { position: static; }
+      }
+      @media (max-width: 900px) {
+        .orchestrate { grid-template-columns: 1fr; }
+        .orchestrate-side { position: static; }
+      }
       @media (max-width: 720px) {
         header { flex-wrap: wrap; }
         .header-fields { width: 100%; }
@@ -221,7 +287,10 @@
 
     <nav class="tabs">
       <button data-tab="overview" class="active">概览</button>
+      <button data-tab="try">接口测试</button>
       <button data-tab="add">添加来源</button>
+      <button data-tab="credentials">认证信息</button>
+      <button data-tab="transform">数据编排</button>
       <button data-tab="prompt">接入提示词</button>
       <button data-tab="import">JSON 导入</button>
     </nav>
@@ -257,6 +326,145 @@
             </table>
           </div>
           <div id="source-error" class="result err" style="margin-top: 12px"></div>
+        </div>
+      </section>
+
+      <!-- ================= 接口测试 ================= -->
+      <section id="tab-try" hidden>
+        <div class="tester">
+          <aside class="card tester-side">
+            <h2>接口测试</h2>
+            <div class="hint" style="margin: -4px 0 12px">逐个调用接口，查看真实响应。请求会真实发往上游服务。</div>
+            <label class="field"><span>来源</span><select id="try-source"></select></label>
+            <label class="field"><span>过滤</span><input id="try-search" type="text" placeholder="名称 / 描述关键词" /></label>
+            <div class="try-list" id="try-list"><div class="empty">加载中…</div></div>
+            <div class="hint try-count" id="try-count"></div>
+          </aside>
+          <div class="tester-main">
+            <div class="card" id="try-detail"><div class="empty">从左侧选择一个接口开始测试</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 认证信息 ================= -->
+      <section id="tab-credentials" hidden>
+        <div class="vault-grid">
+          <div class="card">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
+              <div style="flex: 1">
+                <h2>认证信息</h2>
+                <div class="hint" style="margin: 0">可复用的密钥 / 请求头。来源按名称引用，轮换密钥时只改这里。</div>
+              </div>
+              <button id="credential-refresh" class="ghost">刷新</button>
+            </div>
+            <div style="overflow-x: auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>名称</th><th>类型</th><th>请求头</th><th>值</th><th>被引用</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="credential-rows">
+                  <tr><td colspan="6" class="empty">加载中…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="hint" id="credential-file" style="margin: 10px 0 0"></div>
+          </div>
+
+          <div class="card vault-form">
+            <h2 id="credential-form-title">新增认证信息</h2>
+            <div class="hint">值只保存在服务器本地，列表里始终显示掩码。</div>
+            <label class="field"><span>名称 <em>*</em>（用于来源引用，字母/数字/._-）</span><input id="cred-name" type="text" placeholder="rainyun" /></label>
+            <label class="field">
+              <span>类型</span>
+              <select id="cred-type">
+                <option value="header">自定义请求头（如 X-Api-Key）</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic 认证</option>
+              </select>
+            </label>
+            <label class="field" id="cred-key-wrap"><span>请求头名称 <em>*</em></span><input id="cred-key" type="text" placeholder="X-Api-Key" /></label>
+            <label class="field" id="cred-value-wrap">
+              <span>值 <em>*</em> <em id="cred-value-hint" style="color: var(--muted)"></em></span>
+              <input id="cred-value" type="password" placeholder="密钥 / token" autocomplete="new-password" />
+            </label>
+            <div id="cred-basic-wrap" hidden>
+              <label class="field"><span>用户名 <em>*</em></span><input id="cred-username" type="text" placeholder="user" autocomplete="off" /></label>
+              <label class="field"><span>密码</span><input id="cred-password" type="password" placeholder="password" autocomplete="new-password" /></label>
+            </div>
+            <label class="field"><span>备注</span><input id="cred-note" type="text" placeholder="用途说明（可选）" /></label>
+            <div class="form-actions">
+              <button class="primary" id="cred-save">保存</button>
+              <button class="ghost" id="cred-clear">清空</button>
+              <span class="sub" id="cred-mode"></span>
+            </div>
+            <div class="result" id="cred-result"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 数据编排 ================= -->
+      <section id="tab-transform" hidden>
+        <div class="orchestrate">
+          <aside class="card orchestrate-side">
+            <h2>数据编排</h2>
+            <div class="hint" style="margin: -4px 0 12px">在响应到达调用方之前重新组装：挑字段、改名、补充当前时间 / 固定文本。</div>
+            <label class="field"><span>来源</span><select id="transform-source"></select></label>
+            <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（该来源全部接口的默认规则）</option></select></label>
+            <div class="form-actions" style="margin-top: 0">
+              <button id="transform-load" class="primary">打开</button>
+              <button id="transform-new" class="ghost">新建</button>
+            </div>
+            <div class="divider"></div>
+            <div class="hint" style="margin-bottom: 6px">已保存的编排</div>
+            <div class="try-list" id="transform-saved" style="max-height: 30vh"><div class="empty">加载中…</div></div>
+          </aside>
+
+          <div class="card">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px">
+              <div style="flex: 1">
+                <h2 id="transform-title">选择来源和接口</h2>
+                <div class="hint" style="margin: 0">积木按顺序执行；没被积木选中的字段默认丢弃（除非开启「保留原字段」）。</div>
+              </div>
+              <span class="badge" id="transform-state">未保存</span>
+            </div>
+
+            <div class="two-col">
+              <label class="field"><span>数据根路径（留空 = 整个响应 <code>data</code>）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
+              <label class="field" style="padding-top: 4px">
+                <span>&nbsp;</span>
+                <span class="checkline" style="margin: 0"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap">
+              <span class="sub" style="flex: 1">积木（从上到下依次执行）</span>
+              <select id="transform-add-op" style="width: auto"></select>
+              <button id="transform-add">+ 添加积木</button>
+            </div>
+            <div id="transform-blocks"></div>
+
+            <div class="divider"></div>
+            <div class="two-col">
+              <label class="field">
+                <span>示例响应（仅用于预览，不会发给上游）</span>
+                <textarea id="transform-sample" style="min-height: 130px">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
+              </label>
+              <label class="field">
+                <span>预览结果</span>
+                <textarea id="transform-preview" readonly style="min-height: 130px"></textarea>
+              </label>
+            </div>
+            <div class="form-actions" style="margin-top: 0">
+              <button class="primary" id="transform-save">保存编排</button>
+              <button id="transform-preview-btn">预览</button>
+              <button id="transform-grab">抓一份真实响应</button>
+              <button class="danger" id="transform-delete">删除编排</button>
+              <span class="sub" id="transform-status"></span>
+            </div>
+            <div class="result" id="transform-result"></div>
+          </div>
         </div>
       </section>
 
@@ -344,6 +552,13 @@
 
             <label class="field"><span>Base URL（留空则用文档里的 <code>servers[0].url</code>）</span><input id="api-baseurl" type="text" placeholder="https://api.example.com/v1" /></label>
             <label class="field"><span>默认请求头（每行 <code>Header: value</code>）</span><textarea id="api-headers" style="min-height: 56px" placeholder="User-Agent: mcp-api-bridge"></textarea></label>
+
+            <div class="field">
+              <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
+                复用「认证信息」里的凭证（可选，轮换密钥只改认证信息）
+              </span>
+              <div id="api-credential-refs" class="checkline" style="margin-bottom: 0"></div>
+            </div>
 
             <div class="field">
               <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
@@ -607,6 +822,9 @@
             }
             if (button.dataset.tab === "prompt") loadPrompts();
             if (button.dataset.tab === "overview") loadOverview();
+            if (button.dataset.tab === "try") initTester();
+            if (button.dataset.tab === "credentials") loadCredentials();
+            if (button.dataset.tab === "transform") initTransforms();
           });
         });
 
@@ -674,6 +892,18 @@
             testButton.addEventListener("click", () => testExisting(source, testButton));
             actions.appendChild(testButton);
 
+            const tryButton = document.createElement("button");
+            tryButton.textContent = "接口";
+            tryButton.title = "逐项测试该来源的每个接口";
+            tryButton.addEventListener("click", () => openTester(source.name));
+            actions.appendChild(tryButton);
+
+            const transformButton = document.createElement("button");
+            transformButton.textContent = "编排";
+            transformButton.title = "调整该来源接口返回的数据";
+            transformButton.addEventListener("click", () => openTransform(source.name));
+            actions.appendChild(transformButton);
+
             const editButton = document.createElement("button");
             editButton.textContent = "编辑";
             editButton.addEventListener("click", () => editSource(source));
@@ -713,6 +943,587 @@
           select.value = current;
         }
 
+        // ---------------- interface tester (逐项测试) ----------------
+        const tryState = {
+          source: "",
+          tools: [],
+          tool: null,
+          fields: [],
+          mode: "form",
+          loadedFor: "",
+          pendingSource: "",
+          values: new Map(),
+        };
+
+        const tryValueKey = (key) => `${tryState.source}/${tryState.tool ? tryState.tool.name : ""}/${key}`;
+
+        function escapeHtml(value) {
+          const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+          return String(value).replace(/[&<>"']/g, (ch) => map[ch]);
+        }
+
+        function sourceKind(source) {
+          return source && source.type === "mcp" ? "mcp" : "api";
+        }
+
+        function fillTrySources(sources) {
+          const select = $("try-source");
+          const current = tryState.source || select.value;
+          select.innerHTML = "";
+          if (!sources.length) {
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "（还没有来源）";
+            select.appendChild(option);
+            return;
+          }
+          for (const source of sources) {
+            const option = document.createElement("option");
+            option.value = source.name;
+            option.textContent = `${source.name}（${source.type === "mcp" ? "MCP" : "OpenAPI"} · ${source.toolCount ?? 0} 个工具）`;
+            select.appendChild(option);
+          }
+          if (current && sources.some((source) => source.name === current)) select.value = current;
+        }
+
+        function openTester(name) {
+          tryState.pendingSource = name;
+          document.querySelector('nav.tabs button[data-tab="try"]').click();
+        }
+
+        async function initTester() {
+          if (!state.sources.length) await loadOverview();
+          fillTrySources(state.sources);
+          const wanted = tryState.pendingSource || $("try-source").value || (state.sources[0] ? state.sources[0].name : "");
+          tryState.pendingSource = "";
+          if (!wanted) {
+            $("try-list").innerHTML = '<div class="empty">还没有来源，先去「添加来源」接入一个</div>';
+            $("try-count").textContent = "";
+            return;
+          }
+          $("try-source").value = wanted;
+          await loadTryTools(wanted);
+        }
+
+        async function loadTryTools(name) {
+          const source = state.sources.find((item) => item.name === name);
+          if (!source) return;
+          if (tryState.loadedFor === name && tryState.tools.length) return;
+          tryState.source = name;
+          tryState.loadedFor = name;
+          tryState.tool = null;
+          tryState.fields = [];
+          tryState.tools = [];
+          $("try-list").innerHTML = '<div class="empty">加载中…</div>';
+          $("try-detail").innerHTML = '<div class="empty">从左侧选择一个接口开始测试</div>';
+          $("try-count").textContent = "";
+          try {
+            const data = await api(`/sources/${sourceKind(source)}/${encodeURIComponent(name)}/tools`);
+            if (tryState.loadedFor !== name) return;
+            tryState.tools = Array.isArray(data.tools) ? data.tools : [];
+            renderTryList();
+            if (tryState.tools.length) selectTryTool(tryState.tools[0].name);
+          } catch (error) {
+            if (tryState.loadedFor !== name) return;
+            $("try-list").innerHTML = `<div class="empty">${escapeHtml(error.message || "加载失败")}</div>`;
+          }
+        }
+
+        function renderTryList() {
+          const list = $("try-list");
+          list.innerHTML = "";
+          const query = $("try-search").value.trim().toLowerCase();
+          const items = tryState.tools.filter((tool) => {
+            if (!query) return true;
+            return `${tool.name} ${tool.title || ""} ${tool.description || ""}`.toLowerCase().includes(query);
+          });
+          for (const tool of items) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `try-item${tryState.tool && tryState.tool.name === tool.name ? " active" : ""}`;
+            const name = document.createElement("span");
+            name.className = "n";
+            name.textContent = tool.name;
+            const desc = document.createElement("span");
+            desc.className = "d";
+            desc.textContent = tool.title || (tool.method ? `${tool.method} ${tool.path}` : tool.description || "");
+            button.appendChild(name);
+            button.appendChild(desc);
+            button.addEventListener("click", () => selectTryTool(tool.name));
+            list.appendChild(button);
+          }
+          $("try-count").textContent = query
+            ? `${items.length} / ${tryState.tools.length} 个接口`
+            : tryState.tools.length
+              ? `共 ${tryState.tools.length} 个接口`
+              : "";
+          if (!items.length && tryState.tools.length) {
+            list.innerHTML = '<div class="empty">没有匹配的接口</div>';
+          }
+        }
+
+        function selectTryTool(name) {
+          const tool = tryState.tools.find((item) => item.name === name);
+          if (!tool) return;
+          tryState.tool = tool;
+          tryState.fields = [];
+          renderTryList();
+          renderTryDetail();
+        }
+
+        function schemaKind(schema) {
+          if (!schema || typeof schema !== "object") return "string";
+          const type = Array.isArray(schema.type) ? schema.type[0] : schema.type;
+          if (["integer", "number", "boolean", "array", "object", "string"].includes(type)) return type;
+          if (schema.properties) return "object";
+          if (schema.items) return "array";
+          return "string";
+        }
+
+        function buildTryField(key, prop, required) {
+          const schema = prop && typeof prop === "object" ? prop : {};
+          const kind = schemaKind(schema);
+          const wrap = document.createElement("label");
+          wrap.className = `field${kind === "object" ? " field-span" : ""}`;
+          const label = document.createElement("span");
+          label.textContent = key;
+          if (required) {
+            const em = document.createElement("em");
+            em.textContent = " *";
+            label.appendChild(em);
+          }
+          const tag = document.createElement("small");
+          tag.style.cssText = "color: var(--muted); font-weight: 400";
+          tag.textContent = `  ${kind}`;
+          label.appendChild(tag);
+          wrap.appendChild(label);
+
+          let input;
+          const options = Array.isArray(schema.enum) ? schema.enum : null;
+          if (options) {
+            input = document.createElement("select");
+            if (!required) input.appendChild(new Option("（不传）", ""));
+            for (const option of options) input.appendChild(new Option(String(option), String(option)));
+          } else if (kind === "boolean") {
+            input = document.createElement("select");
+            if (!required) input.appendChild(new Option("（不传）", ""));
+            input.appendChild(new Option("true", "true"));
+            input.appendChild(new Option("false", "false"));
+          } else if (kind === "object") {
+            input = document.createElement("textarea");
+            input.style.minHeight = "90px";
+            input.placeholder = '{"key": "value"}';
+          } else if (kind === "array") {
+            input = document.createElement("input");
+            input.type = "text";
+            input.placeholder = 'a, b 或 ["a","b"]';
+          } else if (kind === "integer" || kind === "number") {
+            input = document.createElement("input");
+            input.type = "number";
+            input.step = kind === "integer" ? "1" : "any";
+            if (schema.minimum !== undefined) input.min = String(schema.minimum);
+            if (schema.maximum !== undefined) input.max = String(schema.maximum);
+          } else {
+            input = document.createElement("input");
+            input.type = "text";
+            input.placeholder = schema.format ? String(schema.format) : "";
+          }
+          input.id = `try-field-${key}`;
+          wrap.appendChild(input);
+
+          if (schema.description) {
+            const hint = document.createElement("div");
+            hint.className = "sub";
+            hint.style.marginTop = "4px";
+            hint.textContent = String(schema.description);
+            wrap.appendChild(hint);
+          }
+
+          const saved = tryState.values.get(tryValueKey(key));
+          if (saved !== undefined) input.value = saved;
+          const remember = () => tryState.values.set(tryValueKey(key), input.value);
+          input.addEventListener("input", remember);
+          input.addEventListener("change", remember);
+          tryState.fields.push({ key, kind, required, input, prop: schema });
+          return wrap;
+        }
+
+        function renderTryDetail() {
+          const tool = tryState.tool;
+          const card = $("try-detail");
+          card.innerHTML = "";
+          tryState.fields = [];
+          if (!tool) {
+            card.innerHTML = '<div class="empty">从左侧选择一个接口开始测试</div>';
+            return;
+          }
+
+          const head = document.createElement("div");
+          head.className = "try-head";
+          const titleBox = document.createElement("div");
+          const h2 = document.createElement("h2");
+          h2.textContent = tool.name;
+          const meta = document.createElement("div");
+          meta.className = "hint";
+          meta.style.margin = "2px 0 0";
+          const bits = [tool.method ? `${tool.method} ${tool.path}` : "MCP 工具"];
+          if (tool.exposed) {
+            if (tool.exposed.rest && tool.exposed.mcp) bits.push("REST + MCP");
+            else if (tool.exposed.rest) bits.push("仅 REST");
+            else if (tool.exposed.mcp) bits.push("仅 MCP");
+          }
+          if (tool.annotations && tool.annotations.readOnlyHint) bits.push("只读");
+          meta.textContent = bits.join(" · ");
+          titleBox.appendChild(h2);
+          titleBox.appendChild(meta);
+          head.appendChild(titleBox);
+          if (tool.method) {
+            const method = document.createElement("span");
+            method.className = `method ${String(tool.method).toLowerCase()}`;
+            method.textContent = tool.method;
+            head.appendChild(method);
+          }
+          card.appendChild(head);
+
+          if (tool.description) {
+            const desc = document.createElement("div");
+            desc.className = "hint";
+            desc.style.margin = "10px 0 0";
+            desc.textContent = tool.description;
+            card.appendChild(desc);
+          }
+
+          const seg = document.createElement("div");
+          seg.className = "seg";
+          seg.style.margin = "14px 0 12px";
+          for (const [mode, label] of [["form", "表单"], ["json", "JSON"]]) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.dataset.mode = mode;
+            button.textContent = label;
+            if (tryState.mode === mode) button.classList.add("active");
+            button.addEventListener("click", () => setTryMode(mode));
+            seg.appendChild(button);
+          }
+          card.appendChild(seg);
+
+          const schema = tool.inputSchema && typeof tool.inputSchema === "object" ? tool.inputSchema : {};
+          const props = schema.properties && typeof schema.properties === "object" ? schema.properties : {};
+          const required = Array.isArray(schema.required) ? schema.required : [];
+          if (!Object.keys(props).length) {
+            const empty = document.createElement("div");
+            empty.className = "hint";
+            empty.textContent = "该接口没有参数，直接发送即可。";
+            card.appendChild(empty);
+          }
+          const fields = document.createElement("div");
+          fields.className = "try-form";
+          fields.id = "try-fields";
+          fields.hidden = tryState.mode !== "form";
+          for (const [key, prop] of Object.entries(props)) {
+            fields.appendChild(buildTryField(key, prop, required.includes(key)));
+          }
+          card.appendChild(fields);
+
+          const jsonWrap = document.createElement("label");
+          jsonWrap.className = "field";
+          jsonWrap.hidden = tryState.mode !== "json";
+          const jsonLabel = document.createElement("span");
+          jsonLabel.textContent = "参数 JSON（整个 arguments 对象）";
+          const jsonArea = document.createElement("textarea");
+          jsonArea.id = "try-json";
+          jsonArea.style.minHeight = "160px";
+          jsonArea.placeholder = "{}";
+          jsonArea.value = tryState.values.get(tryValueKey("__json")) ?? "";
+          jsonArea.addEventListener("input", () => tryState.values.set(tryValueKey("__json"), jsonArea.value));
+          jsonWrap.appendChild(jsonLabel);
+          jsonWrap.appendChild(jsonArea);
+          card.appendChild(jsonWrap);
+
+          const actions = document.createElement("div");
+          actions.className = "form-actions";
+          const send = document.createElement("button");
+          send.className = "primary";
+          send.id = "try-send";
+          send.textContent = "发送请求";
+          send.addEventListener("click", () => sendTry());
+          const fill = document.createElement("button");
+          fill.className = "ghost";
+          fill.textContent = "填入示例";
+          fill.addEventListener("click", fillTryExample);
+          const reset = document.createElement("button");
+          reset.className = "ghost";
+          reset.textContent = "清空参数";
+          reset.addEventListener("click", () => {
+            for (const field of tryState.fields) {
+              field.input.value = "";
+              tryState.values.delete(tryValueKey(field.key));
+            }
+            if ($("try-json")) {
+              $("try-json").value = "";
+              tryState.values.delete(tryValueKey("__json"));
+            }
+          });
+          actions.appendChild(send);
+          actions.appendChild(fill);
+          actions.appendChild(reset);
+          if (tool.method && !["GET", "HEAD"].includes(String(tool.method).toUpperCase())) {
+            const warn = document.createElement("span");
+            warn.className = "sub";
+            warn.textContent = "非 GET 接口会修改上游数据，发送前会二次确认。";
+            actions.appendChild(warn);
+          }
+          card.appendChild(actions);
+
+          const result = document.createElement("div");
+          result.className = "try-result";
+          result.id = "try-result";
+          card.appendChild(result);
+        }
+
+        function setTryMode(mode, options = {}) {
+          if (mode === tryState.mode) return;
+          if (mode === "json" && options.sync !== false) {
+            try {
+              const args = collectTryArgs({ lenient: true });
+              const area = $("try-json");
+              if (area) {
+                area.value = Object.keys(args).length ? JSON.stringify(args, null, 2) : "";
+                tryState.values.set(tryValueKey("__json"), area.value);
+              }
+            } catch {
+              /* keep whatever JSON was there */
+            }
+          } else if (mode === "form" && options.sync !== false) {
+            const area = $("try-json");
+            const raw = area ? area.value.trim() : "";
+            if (raw) {
+              let parsed;
+              try {
+                parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("必须是对象");
+              } catch (error) {
+                toast(`JSON 解析失败：${error.message}`, "err");
+                return;
+              }
+              for (const field of tryState.fields) {
+                if (!(field.key in parsed)) continue;
+                const value = parsed[field.key];
+                field.input.value =
+                  typeof value === "string" ? value : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+                tryState.values.set(tryValueKey(field.key), field.input.value);
+              }
+            }
+          }
+          tryState.mode = mode;
+          if ($("try-fields")) $("try-fields").hidden = mode !== "form";
+          const area = $("try-json");
+          if (area && area.closest("label")) area.closest("label").hidden = mode !== "json";
+          document.querySelectorAll("#try-detail .seg button").forEach((button) => {
+            button.classList.toggle("active", button.dataset.mode === mode);
+          });
+        }
+
+        function coerceTryValue(field, raw, lenient) {
+          const fail = (message) => {
+            if (lenient) return raw;
+            throw new Error(message);
+          };
+          if (field.kind === "integer") {
+            const value = Number(raw);
+            return Number.isInteger(value) ? value : fail(`参数 "${field.key}" 需要整数`);
+          }
+          if (field.kind === "number") {
+            const value = Number(raw);
+            return Number.isFinite(value) ? value : fail(`参数 "${field.key}" 需要数字`);
+          }
+          if (field.kind === "boolean") return raw === "true";
+          if (field.kind === "array") {
+            if (raw.startsWith("[")) {
+              try {
+                const value = JSON.parse(raw);
+                if (Array.isArray(value)) return value;
+              } catch {
+                /* fall through */
+              }
+              return fail(`参数 "${field.key}" 的数组 JSON 无效`);
+            }
+            return raw
+              .split(",")
+              .map((item) => item.trim())
+              .filter((item) => item !== "");
+          }
+          if (field.kind === "object") {
+            try {
+              const value = JSON.parse(raw);
+              if (value && typeof value === "object" && !Array.isArray(value)) return value;
+            } catch {
+              /* fall through */
+            }
+            return fail(`参数 "${field.key}" 需要 JSON 对象`);
+          }
+          return raw;
+        }
+
+        function collectTryArgs(options = {}) {
+          const lenient = options.lenient === true;
+          if (tryState.mode === "json") {
+            const raw = $("try-json") ? $("try-json").value.trim() : "";
+            if (!raw) return {};
+            let parsed;
+            try {
+              parsed = JSON.parse(raw);
+            } catch (error) {
+              if (lenient) return {};
+              throw new Error(`参数 JSON 解析失败：${error.message}`);
+            }
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+              if (lenient) return {};
+              throw new Error("参数 JSON 必须是一个对象");
+            }
+            return parsed;
+          }
+          const args = {};
+          for (const field of tryState.fields) {
+            const raw = String(field.input.value ?? "").trim();
+            if (!raw) {
+              if (field.required && !lenient) throw new Error(`缺少必填参数 "${field.key}"`);
+              continue;
+            }
+            args[field.key] = coerceTryValue(field, raw, lenient);
+          }
+          return args;
+        }
+
+        function sampleFor(schema, kind) {
+          const candidates = [
+            schema.default,
+            Array.isArray(schema.examples) ? schema.examples[0] : undefined,
+            schema.example,
+            schema.const,
+          ];
+          for (const candidate of candidates) {
+            if (candidate === undefined || candidate === null) continue;
+            return typeof candidate === "object" ? JSON.stringify(candidate, null, 2) : String(candidate);
+          }
+          if (Array.isArray(schema.enum) && schema.enum.length) return String(schema.enum[0]);
+          if (kind === "boolean") return "false";
+          if (kind === "integer" || kind === "number") return String(schema.minimum !== undefined ? schema.minimum : 1);
+          if (kind === "array") {
+            const itemEnum = schema.items && Array.isArray(schema.items.enum) ? schema.items.enum : null;
+            return itemEnum && itemEnum.length ? `["${itemEnum[0]}"]` : "[]";
+          }
+          if (kind === "object") return "{}";
+          if (schema.format === "date") return new Date().toISOString().slice(0, 10);
+          if (schema.format === "date-time") return new Date().toISOString();
+          return "string";
+        }
+
+        function fillTryExample() {
+          if (tryState.mode === "json") {
+            toast("JSON 模式下请直接编辑参数", "");
+            return;
+          }
+          if (!tryState.fields.length) {
+            toast("该接口没有参数", "");
+            return;
+          }
+          for (const field of tryState.fields) {
+            const value = sampleFor(field.prop, field.kind);
+            field.input.value = value;
+            tryState.values.set(tryValueKey(field.key), value);
+          }
+          toast("已填入示例值，发送前请按需修改", "ok");
+        }
+
+        async function sendTry() {
+          const tool = tryState.tool;
+          if (!tool) return;
+          let args;
+          try {
+            args = collectTryArgs();
+          } catch (error) {
+            renderTryPanel(false, "参数有误", [], String(error.message || error));
+            return;
+          }
+          if (tool.method && !["GET", "HEAD"].includes(String(tool.method).toUpperCase())) {
+            const ok = window.confirm(`即将向 ${tool.method} ${tool.path} 发送真实请求，可能修改上游数据。继续？`);
+            if (!ok) return;
+          }
+          const button = $("try-send");
+          button.disabled = true;
+          button.textContent = "请求中…";
+          const started = performance.now();
+          try {
+            const body = await api("/invoke", {
+              method: "POST",
+              body: JSON.stringify({ source: tryState.source, tool: tool.name, arguments: args }),
+            });
+            const clientMs = Math.round(performance.now() - started);
+            const metaBits = [];
+            if (body.method && body.path) metaBits.push(`${body.method} ${body.path}`);
+            metaBits.push(`${body.durationMs !== undefined ? body.durationMs : clientMs} ms`);
+            metaBits.push(`响应 ${JSON.stringify(body).length} 字符`);
+            const headline = body.isError ? "上游返回错误" : "调用成功";
+            renderTryPanel(body.isError !== true, headline, metaBits, JSON.stringify(body, null, 2));
+          } catch (error) {
+            const clientMs = Math.round(performance.now() - started);
+            const metaBits = [];
+            if (error.status) metaBits.push(`HTTP ${error.status}`);
+            metaBits.push(`${clientMs} ms`);
+            const payload = error.body ? JSON.stringify(error.body, null, 2) : String(error.message || "请求失败");
+            renderTryPanel(false, "调用失败", metaBits, payload);
+            const issues = error.body && Array.isArray(error.body.issues) ? error.body.issues : [];
+            if (issues.length && $("try-result")) {
+              const list = document.createElement("ul");
+              for (const issue of issues) {
+                const li = document.createElement("li");
+                li.textContent = typeof issue === "string" ? issue : JSON.stringify(issue);
+                list.appendChild(li);
+              }
+              $("try-result").appendChild(list);
+            }
+          } finally {
+            button.disabled = false;
+            button.textContent = "发送请求";
+          }
+        }
+
+        function renderTryPanel(ok, headline, metaBits, payload) {
+          const box = $("try-result");
+          if (!box) return;
+          box.innerHTML = "";
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          const badge = document.createElement("span");
+          badge.className = `badge ${ok ? "ok" : "err"}`;
+          badge.textContent = headline;
+          meta.appendChild(badge);
+          for (const bit of metaBits) {
+            const span = document.createElement("span");
+            span.textContent = bit;
+            meta.appendChild(span);
+          }
+          const copy = document.createElement("button");
+          copy.className = "ghost";
+          copy.textContent = "复制响应";
+          copy.style.marginLeft = "auto";
+          copy.addEventListener("click", () => copyText(payload, "响应"));
+          meta.appendChild(copy);
+          box.appendChild(meta);
+          const pre = document.createElement("pre");
+          pre.textContent =
+            payload.length > 200000 ? `${payload.slice(0, 200000)}\n…（已截断，共 ${payload.length} 字符）` : payload;
+          box.appendChild(pre);
+        }
+
+        $("try-source").addEventListener("change", () => {
+          tryState.loadedFor = "";
+          tryState.values.clear();
+          loadTryTools($("try-source").value);
+        });
+        $("try-search").addEventListener("input", renderTryList);
+
         async function loadOverview() {
           try {
             clearResult("source-error");
@@ -728,6 +1539,7 @@
             $("base-chip").textContent = BOOT.baseUrl || location.origin;
             renderSources(state.sources);
             fillSourceSelect(state.sources);
+            fillTrySources(state.sources);
           } catch (error) {
             $("source-rows").innerHTML = '<tr><td colspan="6" class="empty">无法加载来源列表</td></tr>';
             setResult("source-error", false, error.message || "加载失败", [
@@ -988,6 +1800,7 @@
             baseUrl: $("api-baseurl").value.trim(),
             headers: parseKv($("api-headers").value, ":"),
             security: collectSecurity(),
+            credentialRefs: [...$("api-credential-refs").querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value),
             include: splitList($("api-include").value),
             exclude: splitList($("api-exclude").value),
             exposure: {
@@ -1019,6 +1832,7 @@
           else $("api-spec-text").value = spec;
           $("api-baseurl").value = entry.baseUrl || "";
           $("api-headers").value = kvText(entry.headers);
+          renderApiCredentialChoices(entry.credentialRefs || []);
           $("api-security-rows").innerHTML = "";
           for (const [scheme, credential] of Object.entries(entry.security || {})) {
             addSecurityRow(scheme, credential.token || credential.apiKey || "", credential.username || "", credential.password || "");
@@ -1066,6 +1880,7 @@
           $("api-spec-text").value = "";
           $("api-baseurl").value = "";
           $("api-headers").value = "";
+          renderApiCredentialChoices([]);
           $("api-security-rows").innerHTML = "";
           $("api-include").value = "";
           $("api-exclude").value = "";
@@ -1120,6 +1935,725 @@
             setResult("api-result", false, error.message || "保存失败", []);
           } finally {
             button.disabled = false;
+          }
+        });
+
+        // ---------------- 认证信息 (credential vault) ----------------
+        const credState = { editing: "", credentials: [] };
+
+        function syncCredentialForm() {
+          const type = $("cred-type").value;
+          $("cred-key-wrap").hidden = type !== "header";
+          $("cred-value-wrap").hidden = type === "basic";
+          $("cred-basic-wrap").hidden = type !== "basic";
+          $("cred-value").placeholder =
+            type === "bearer" ? "Bearer token" : type === "header" ? "密钥 / token 值" : "";
+          $("cred-value-hint").textContent =
+            credState.editing && type !== "basic" ? "（已保存，留空则不修改）" : "";
+          $("cred-mode").textContent = credState.editing ? `正在编辑：${credState.editing}` : "";
+          $("credential-form-title").textContent = credState.editing ? "编辑认证信息" : "新增认证信息";
+        }
+
+        function credentialTypeBadge(type) {
+          return badge(
+            type === "header" ? "请求头" : type === "bearer" ? "Bearer" : "Basic",
+            type === "header" ? "api" : "mcp",
+          );
+        }
+
+        function renderCredentials() {
+          const tbody = $("credential-rows");
+          tbody.innerHTML = "";
+          if (!credState.credentials.length) {
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+            cell.colSpan = 6;
+            cell.className = "empty";
+            cell.textContent = "还没有认证信息。在右侧添加一个，来源就可以按名称引用它。";
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
+          }
+          for (const credential of credState.credentials) {
+            const row = document.createElement("tr");
+
+            const nameCell = document.createElement("td");
+            nameCell.className = "name-cell";
+            nameCell.textContent = credential.name;
+            row.appendChild(nameCell);
+
+            const typeCell = document.createElement("td");
+            typeCell.appendChild(credentialTypeBadge(credential.type));
+            row.appendChild(typeCell);
+
+            const keyCell = document.createElement("td");
+            keyCell.className = "mono";
+            keyCell.textContent = credential.type === "header" ? credential.key : "Authorization";
+            row.appendChild(keyCell);
+
+            const valueCell = document.createElement("td");
+            valueCell.className = "mono";
+            valueCell.textContent =
+              credential.type === "basic"
+                ? `${credential.username || "—"} / ${credential.password || "••••"}`
+                : credential.value || "—";
+            row.appendChild(valueCell);
+
+            const usedCell = document.createElement("td");
+            const used = document.createElement("div");
+            used.className = "cred-used";
+            if ((credential.usedBy || []).length) {
+              for (const name of credential.usedBy) used.appendChild(badge(name, "mcp"));
+            } else {
+              used.textContent = "—";
+              used.className = "sub";
+            }
+            usedCell.appendChild(used);
+            if (credential.note) usedCell.title = credential.note;
+            row.appendChild(usedCell);
+
+            const actionsCell = document.createElement("td");
+            const actions = document.createElement("div");
+            actions.className = "row-actions";
+            const editButton = document.createElement("button");
+            editButton.textContent = "编辑";
+            editButton.addEventListener("click", () => editCredential(credential));
+            actions.appendChild(editButton);
+            const deleteButton = document.createElement("button");
+            deleteButton.className = "danger";
+            deleteButton.textContent = "删除";
+            deleteButton.addEventListener("click", () => deleteCredential(credential));
+            actions.appendChild(deleteButton);
+            actionsCell.appendChild(actions);
+            row.appendChild(actionsCell);
+
+            tbody.appendChild(row);
+          }
+        }
+
+        function editCredential(credential) {
+          credState.editing = credential.name;
+          $("cred-name").value = credential.name;
+          $("cred-name").readOnly = true;
+          $("cred-type").value = credential.type;
+          $("cred-key").value = credential.key || "";
+          $("cred-value").value = "";
+          $("cred-username").value = credential.username || "";
+          $("cred-password").value = "";
+          $("cred-note").value = credential.note || "";
+          syncCredentialForm();
+        }
+
+        function clearCredentialForm() {
+          credState.editing = "";
+          $("cred-name").value = "";
+          $("cred-name").readOnly = false;
+          $("cred-type").value = "header";
+          $("cred-key").value = "";
+          $("cred-value").value = "";
+          $("cred-username").value = "";
+          $("cred-password").value = "";
+          $("cred-note").value = "";
+          clearResult("cred-result");
+          syncCredentialForm();
+        }
+
+        async function loadCredentials() {
+          try {
+            const data = await api("/credentials");
+            credState.credentials = data.credentials || [];
+            $("credential-file").textContent = data.file ? `存储位置：${data.file}` : "";
+            renderCredentials();
+            renderApiCredentialChoices();
+            if (credState.editing && !credState.credentials.some((item) => item.name === credState.editing)) {
+              clearCredentialForm();
+            }
+          } catch (error) {
+            $("credential-rows").innerHTML = `<tr><td colspan="6" class="empty">无法加载认证信息：${escapeHtml(error.message)}</td></tr>`;
+          }
+        }
+
+        async function deleteCredential(credential) {
+          if (!confirm(`确定删除认证信息「${credential.name}」？引用它的来源会失去该凭证。`)) return;
+          try {
+            const result = await api(`/credentials/${encodeURIComponent(credential.name)}`, { method: "DELETE" });
+            const usedBy = result.usedBy || [];
+            toast(`已删除「${credential.name}」${usedBy.length ? `，仍被 ${usedBy.join("、")} 引用` : ""}`, usedBy.length ? "" : "ok");
+            if (credState.editing === credential.name) clearCredentialForm();
+            await loadCredentials();
+          } catch (error) {
+            toast(`删除失败：${error.message}`, "err");
+          }
+        }
+
+        function renderApiCredentialChoices(selected) {
+          const box = $("api-credential-refs");
+          if (!box) return;
+          const keep = selected ?? [...box.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+          box.innerHTML = "";
+          if (!credState.credentials.length) {
+            const span = document.createElement("span");
+            span.className = "sub";
+            span.textContent = "还没有认证信息，可到「认证信息」页添加后再回来引用。";
+            box.appendChild(span);
+            return;
+          }
+          for (const credential of credState.credentials) {
+            const label = document.createElement("label");
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = credential.name;
+            checkbox.checked = keep.includes(credential.name);
+            label.appendChild(checkbox);
+            const detail = credential.type === "header" ? credential.key : credential.type === "bearer" ? "Authorization" : "Basic";
+            label.appendChild(document.createTextNode(` ${credential.name}（${detail}）`));
+            box.appendChild(label);
+          }
+        }
+
+        $("cred-type").addEventListener("change", syncCredentialForm);
+        $("credential-refresh").addEventListener("click", loadCredentials);
+        $("cred-clear").addEventListener("click", clearCredentialForm);
+        $("cred-save").addEventListener("click", async () => {
+          const button = $("cred-save");
+          button.disabled = true;
+          button.textContent = "保存中…";
+          try {
+            const type = $("cred-type").value;
+            const payload = {
+              name: $("cred-name").value.trim(),
+              type,
+              key: $("cred-key").value.trim(),
+              value: $("cred-value").value,
+              username: $("cred-username").value.trim(),
+              note: $("cred-note").value.trim(),
+            };
+            const password = $("cred-password").value;
+            if (type === "basic" && password) payload.password = password;
+            await api("/credentials", { method: "POST", body: JSON.stringify({ credential: payload }) });
+            toast(`已保存认证信息「${payload.name}」`, "ok");
+            clearCredentialForm();
+            await loadCredentials();
+          } catch (error) {
+            setResult("cred-result", false, `保存失败：${error.message}`, []);
+          } finally {
+            button.disabled = false;
+            button.textContent = "保存";
+          }
+        });
+
+        // ---------------- 数据编排 (response transforms) ----------------
+        const OP_LABELS = {
+          field: "取字段",
+          text: "模板文本",
+          constant: "固定值",
+          now: "当前时间",
+          count: "计数",
+          join: "拼接数组",
+          omit: "排除字段",
+          each: "逐项编排",
+        };
+
+        const NOW_FORMAT_OPTIONS = [
+          ["iso", "ISO 时间（2026-01-01T00:00:00.000Z）"],
+          ["date", "日期（2026-01-01）"],
+          ["time", "时间（00:00:00，UTC）"],
+          ["timestamp", "毫秒时间戳"],
+          ["locale", "本地时间（中文本地化）"],
+        ];
+
+        const OP_FIELDS = {
+          field: [
+            { key: "from", label: "取值路径", placeholder: "items 或 data.owner.name" },
+            { key: "as", label: "输出字段名（留空 = 同名）", placeholder: "pets" },
+          ],
+          text: [
+            { key: "as", label: "输出字段名", placeholder: "headline" },
+            { key: "template", label: "模板（{{路径}} 会被替换）", type: "textarea", wide: true, placeholder: "共 {{items}} 条，更新于 {{updatedAt}}" },
+          ],
+          constant: [
+            { key: "as", label: "输出字段名", placeholder: "source" },
+            { key: "value", label: "固定值（JSON 或纯文本）", type: "textarea", wide: true, placeholder: '"hello" / 123 / {"cached": false}' },
+          ],
+          now: [
+            { key: "as", label: "输出字段名", placeholder: "generatedAt" },
+            { key: "format", label: "格式", type: "select", options: NOW_FORMAT_OPTIONS },
+            { key: "offsetSeconds", label: "偏移秒数（可选）", type: "number", placeholder: "0" },
+          ],
+          count: [
+            { key: "from", label: "数组 / 对象路径（留空 = 当前根）", placeholder: "items" },
+            { key: "as", label: "输出字段名", placeholder: "count" },
+          ],
+          join: [
+            { key: "from", label: "数组路径（留空 = 当前根）", placeholder: "items" },
+            { key: "as", label: "输出字段名", placeholder: "names" },
+            { key: "separator", label: "分隔符", placeholder: ", " },
+          ],
+          omit: [
+            { key: "from", label: "要排除的字段名", placeholder: "password" },
+          ],
+          each: [
+            { key: "from", label: "数组路径（留空 = 当前根）", placeholder: "items" },
+            { key: "as", label: "输出字段名", placeholder: "rows" },
+          ],
+        };
+
+        const tfState = { source: "", tool: "*", tools: [], saved: [], pending: null, initialized: false };
+
+        function blockDefaults(op) {
+          switch (op) {
+            case "field": return { op, from: "", as: "" };
+            case "text": return { op, as: "", template: "" };
+            case "constant": return { op, as: "", value: "" };
+            case "now": return { op, as: "", format: "iso" };
+            case "count": return { op, from: "", as: "" };
+            case "join": return { op, from: "", as: "", separator: ", " };
+            case "omit": return { op, from: "" };
+            case "each": return { op, from: "", as: "", blocks: [] };
+            default: return { op: "field", from: "" };
+          }
+        }
+
+        function opSelect() {
+          const select = document.createElement("select");
+          for (const [op, label] of Object.entries(OP_LABELS)) {
+            const option = document.createElement("option");
+            option.value = op;
+            option.textContent = label;
+            select.appendChild(option);
+          }
+          return select;
+        }
+
+        function blockField(def, value) {
+          const label = document.createElement("label");
+          label.className = def.wide ? "field wide" : "field";
+          const caption = document.createElement("span");
+          caption.textContent = def.label;
+          label.appendChild(caption);
+
+          let input;
+          if (def.type === "textarea") {
+            input = document.createElement("textarea");
+            input.rows = 2;
+          } else if (def.type === "select") {
+            input = document.createElement("select");
+            for (const [optionValue, optionLabel] of def.options) {
+              const option = document.createElement("option");
+              option.value = optionValue;
+              option.textContent = optionLabel;
+              input.appendChild(option);
+            }
+          } else {
+            input = document.createElement("input");
+            input.type = def.type === "number" ? "number" : "text";
+            if (def.placeholder) input.placeholder = def.placeholder;
+          }
+          input.dataset.key = def.key;
+          if (value !== undefined && value !== null) {
+            input.value = def.key === "value" && typeof value !== "string" ? JSON.stringify(value) : String(value);
+          }
+          label.appendChild(input);
+          return label;
+        }
+
+        function buildBlockElement(block) {
+          const element = document.createElement("div");
+          element.className = "block";
+          element.dataset.op = block.op;
+
+          const head = document.createElement("div");
+          head.className = "block-head";
+          const opBadge = document.createElement("span");
+          opBadge.className = "op";
+          opBadge.textContent = OP_LABELS[block.op] || block.op;
+          head.appendChild(opBadge);
+          const grow = document.createElement("span");
+          grow.className = "grow";
+          head.appendChild(grow);
+
+          const actions = document.createElement("div");
+          actions.className = "block-actions";
+
+          const move = (offset) => {
+            const sibling = offset < 0 ? element.previousElementSibling : element.nextElementSibling;
+            if (!sibling || !sibling.classList.contains("block")) return;
+            if (offset < 0) element.parentNode.insertBefore(element, sibling);
+            else element.parentNode.insertBefore(sibling, element);
+          };
+
+          const up = document.createElement("button");
+          up.textContent = "↑";
+          up.title = "上移";
+          up.addEventListener("click", () => move(-1));
+          actions.appendChild(up);
+
+          const down = document.createElement("button");
+          down.textContent = "↓";
+          down.title = "下移";
+          down.addEventListener("click", () => move(1));
+          actions.appendChild(down);
+
+          const remove = document.createElement("button");
+          remove.className = "danger";
+          remove.textContent = "✕";
+          remove.title = "删除这个积木";
+          remove.addEventListener("click", () => {
+            const container = element.parentNode;
+            element.remove();
+            if (!container.querySelector(":scope > .block")) renderBlocks(container, []);
+          });
+          actions.appendChild(remove);
+          head.appendChild(actions);
+          element.appendChild(head);
+
+          const fields = document.createElement("div");
+          fields.className = "block-fields";
+          for (const def of OP_FIELDS[block.op] || []) {
+            fields.appendChild(blockField(def, block[def.key]));
+          }
+          element.appendChild(fields);
+
+          if (block.op === "each") {
+            const sub = document.createElement("div");
+            sub.className = "sub-blocks";
+            const title = document.createElement("div");
+            title.className = "sub-title";
+            title.textContent = "对每个元素执行的积木（路径相对该元素）";
+            sub.appendChild(title);
+
+            const container = document.createElement("div");
+            container.className = "blocks";
+            renderBlocks(container, block.blocks || []);
+            sub.appendChild(container);
+
+            const adder = document.createElement("div");
+            adder.className = "sub-add";
+            const select = opSelect();
+            const add = document.createElement("button");
+            add.textContent = "+ 子积木";
+            add.addEventListener("click", () => {
+              container.querySelector(":scope > .blocks-empty")?.remove();
+              container.appendChild(buildBlockElement(blockDefaults(select.value)));
+            });
+            adder.appendChild(select);
+            adder.appendChild(add);
+            sub.appendChild(adder);
+            element.appendChild(sub);
+          }
+
+          return element;
+        }
+
+        function renderBlocks(container, blocks) {
+          container.innerHTML = "";
+          if (!blocks || !blocks.length) {
+            const empty = document.createElement("div");
+            empty.className = "blocks-empty";
+            empty.textContent = "还没有积木。选择类型后点「+ 添加积木」。";
+            container.appendChild(empty);
+            return;
+          }
+          for (const block of blocks) container.appendChild(buildBlockElement(block));
+        }
+
+        function parseConstant(text) {
+          const raw = String(text ?? "").trim();
+          if (!raw) return "";
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return text;
+          }
+        }
+
+        function collectBlock(element) {
+          const block = { op: element.dataset.op };
+          for (const input of element.querySelectorAll(":scope > .block-fields [data-key]")) {
+            const key = input.dataset.key;
+            const raw = input.value;
+            if (key === "offsetSeconds") {
+              const offset = Number(raw);
+              if (raw.trim() !== "" && Number.isFinite(offset) && offset !== 0) block.offsetSeconds = offset;
+              continue;
+            }
+            if (key === "value") {
+              block.value = parseConstant(raw);
+              continue;
+            }
+            if (key === "as" && !raw.trim()) continue;
+            block[key] = raw;
+          }
+          if (block.op === "each") {
+            const nested = element.querySelector(":scope > .sub-blocks > .blocks");
+            block.blocks = collectBlocks(nested);
+          }
+          return block;
+        }
+
+        function collectBlocks(container) {
+          if (!container) return [];
+          return [...container.querySelectorAll(":scope > .block")].map(collectBlock);
+        }
+
+        function collectTransformConfig() {
+          const root = $("transform-root").value.trim();
+          const config = {
+            passthrough: $("transform-passthrough").checked,
+            blocks: collectBlocks($("transform-blocks")),
+          };
+          if (root) config.root = root;
+          return config;
+        }
+
+        function setTransformState(state) {
+          const labels = { saved: ["已保存", "ok"], dirty: ["未保存", "err"], fresh: ["新建", ""] };
+          const [text, kind] = labels[state] || labels.fresh;
+          const chip = $("transform-state");
+          chip.className = `badge ${kind}`;
+          chip.textContent = text;
+        }
+
+        function renderSavedTransforms() {
+          const box = $("transform-saved");
+          box.innerHTML = "";
+          if (!tfState.saved.length) {
+            const empty = document.createElement("div");
+            empty.className = "empty";
+            empty.textContent = "还没有保存过编排";
+            box.appendChild(empty);
+            return;
+          }
+          for (const entry of tfState.saved) {
+            const button = document.createElement("button");
+            button.className = "try-item transform-list-item";
+            const name = document.createElement("span");
+            name.className = "n";
+            name.textContent = entry.tool === "*" ? `${entry.source} / 全部接口` : `${entry.source} / ${entry.tool}`;
+            name.appendChild(badge(entry.tool === "*" ? "默认" : "接口", entry.tool === "*" ? "api" : "mcp"));
+            button.appendChild(name);
+            const detail = document.createElement("span");
+            detail.className = "d";
+            detail.textContent = `${(entry.config.blocks || []).length} 个积木${entry.config.root ? ` · 根路径 ${entry.config.root}` : ""}`;
+            button.appendChild(detail);
+            button.addEventListener("click", () => selectTransformTarget(entry.source, entry.tool));
+            box.appendChild(button);
+          }
+        }
+
+        async function refreshTransformSaved() {
+          const data = await api("/transforms");
+          tfState.saved = data.transforms || [];
+          renderSavedTransforms();
+        }
+
+        function fillTransformSources() {
+          const select = $("transform-source");
+          const current = tfState.source || select.value;
+          select.innerHTML = "";
+          for (const source of state.sources) {
+            const option = document.createElement("option");
+            option.value = source.name;
+            option.textContent = `${source.name}（${source.type === "mcp" ? "MCP" : "OpenAPI"} · ${source.toolCount ?? 0} 个工具）`;
+            select.appendChild(option);
+          }
+          if (current && state.sources.some((source) => source.name === current)) select.value = current;
+          tfState.source = select.value;
+        }
+
+        function renderTransformTools() {
+          const select = $("transform-tool");
+          const current = tfState.tool || "*";
+          select.innerHTML = "";
+          const fallback = document.createElement("option");
+          fallback.value = "*";
+          fallback.textContent = "（该来源全部接口的默认规则）";
+          select.appendChild(fallback);
+          for (const tool of tfState.tools) {
+            const option = document.createElement("option");
+            option.value = tool.name;
+            option.textContent = tool.method ? `${tool.name} · ${tool.method} ${tool.path}` : tool.name;
+            select.appendChild(option);
+          }
+          select.value = [...select.options].some((option) => option.value === current) ? current : "*";
+          tfState.tool = select.value;
+        }
+
+        async function loadTransformTools(name) {
+          const source = state.sources.find((item) => item.name === name);
+          if (!source) return;
+          const data = await api(`/sources/${sourceKind(source)}/${encodeURIComponent(name)}/tools`);
+          tfState.tools = data.tools || [];
+          renderTransformTools();
+        }
+
+        function loadTransformEditor(source, tool) {
+          tfState.source = source;
+          tfState.tool = tool;
+          const entry = tfState.saved.find((item) => item.source === source && item.tool === tool);
+          const config = entry ? entry.config : { blocks: [] };
+          $("transform-title").textContent = `${source} · ${tool === "*" ? "全部接口（默认规则）" : tool}`;
+          $("transform-root").value = config.root || "";
+          $("transform-passthrough").checked = config.passthrough === true;
+          renderBlocks($("transform-blocks"), config.blocks || []);
+          $("transform-preview").value = "";
+          clearResult("transform-result");
+          $("transform-status").textContent = entry ? `更新于 ${new Date(entry.updatedAt).toLocaleString("zh-CN", { hour12: false })}` : "";
+          $("transform-delete").disabled = !entry;
+          setTransformState(entry ? "saved" : "fresh");
+        }
+
+        async function selectTransformTarget(source, tool) {
+          $("transform-source").value = source;
+          tfState.source = source;
+          await loadTransformTools(source);
+          $("transform-tool").value = tool;
+          tfState.tool = $("transform-tool").value;
+          loadTransformEditor(source, tfState.tool);
+        }
+
+        function openTransform(source) {
+          tfState.pending = { source, tool: "*" };
+          document.querySelector('nav.tabs button[data-tab="transform"]').click();
+        }
+
+        async function initTransforms() {
+          try {
+            await refreshTransformSaved();
+          } catch (error) {
+            toast(`加载数据编排失败：${error.message}`, "err");
+          }
+          if (!state.sources.length) {
+            $("transform-blocks").innerHTML = '<div class="blocks-empty">还没有来源，先去「添加来源」接入一个。</div>';
+            return;
+          }
+          const pending = tfState.pending;
+          tfState.pending = null;
+          if (tfState.initialized && !pending) return;
+          tfState.initialized = true;
+          fillTransformSources();
+          const source = pending ? pending.source : tfState.source;
+          await selectTransformTarget(source, pending ? pending.tool : "*");
+        }
+
+        async function previewTransform() {
+          let sample;
+          try {
+            sample = JSON.parse($("transform-sample").value || "null");
+          } catch {
+            setResult("transform-result", false, "示例响应不是合法 JSON", []);
+            return;
+          }
+          try {
+            const result = await api("/transforms/preview", {
+              method: "POST",
+              body: JSON.stringify({ config: collectTransformConfig(), sample }),
+            });
+            $("transform-preview").value = JSON.stringify(result.value, null, 2);
+            clearResult("transform-result");
+          } catch (error) {
+            setResult("transform-result", false, `预览失败：${error.message}`, []);
+          }
+        }
+
+        $("transform-add-op").append(...Object.entries(OP_LABELS).map(([op, label]) => {
+          const option = document.createElement("option");
+          option.value = op;
+          option.textContent = label;
+          return option;
+        }));
+        $("transform-add").addEventListener("click", () => {
+          const container = $("transform-blocks");
+          container.querySelector(":scope > .blocks-empty")?.remove();
+          container.appendChild(buildBlockElement(blockDefaults($("transform-add-op").value)));
+          setTransformState("dirty");
+        });
+        $("transform-blocks").addEventListener("input", () => setTransformState("dirty"));
+        $("transform-blocks").addEventListener("change", () => setTransformState("dirty"));
+        $("transform-root").addEventListener("input", () => setTransformState("dirty"));
+        $("transform-passthrough").addEventListener("change", () => setTransformState("dirty"));
+        $("transform-source").addEventListener("change", async () => {
+          tfState.source = $("transform-source").value;
+          tfState.tool = "*";
+          try {
+            await loadTransformTools(tfState.source);
+            loadTransformEditor(tfState.source, "*");
+          } catch (error) {
+            toast(`加载接口列表失败：${error.message}`, "err");
+          }
+        });
+        $("transform-tool").addEventListener("change", () => {
+          tfState.tool = $("transform-tool").value;
+          loadTransformEditor(tfState.source, tfState.tool);
+        });
+        $("transform-load").addEventListener("click", () => {
+          loadTransformEditor($("transform-source").value, $("transform-tool").value);
+        });
+        $("transform-new").addEventListener("click", () => {
+          loadTransformEditor($("transform-source").value, $("transform-tool").value);
+          renderBlocks($("transform-blocks"), []);
+          $("transform-root").value = "";
+          $("transform-passthrough").checked = false;
+          setTransformState("fresh");
+        });
+        $("transform-preview-btn").addEventListener("click", previewTransform);
+        $("transform-grab").addEventListener("click", async () => {
+          const source = $("transform-source").value;
+          const tool = $("transform-tool").value;
+          if (!source || !tool || tool === "*") {
+            toast("先选择一个具体接口，才能抓真实响应", "err");
+            return;
+          }
+          try {
+            const data = await api("/invoke", {
+              method: "POST",
+              body: JSON.stringify({ source, tool, arguments: {}, raw: true }),
+            });
+            $("transform-sample").value = JSON.stringify(data.data ?? null, null, 2);
+            toast(`已填入 ${tool} 的${data.ok ? "" : "错误"}响应`, data.ok ? "ok" : "");
+            await previewTransform();
+          } catch (error) {
+            toast(`抓取失败：${error.message}`, "err");
+          }
+        });
+        $("transform-save").addEventListener("click", async () => {
+          const button = $("transform-save");
+          const source = $("transform-source").value;
+          const tool = $("transform-tool").value;
+          if (!source) {
+            toast("请先选择来源", "err");
+            return;
+          }
+          const config = collectTransformConfig();
+          if (!config.blocks.length) {
+            setResult("transform-result", false, "至少需要一个积木块", []);
+            return;
+          }
+          button.disabled = true;
+          button.textContent = "保存中…";
+          try {
+            await api("/transforms", { method: "PUT", body: JSON.stringify({ source, tool, config }) });
+            toast(`已保存 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排`, "ok");
+            await refreshTransformSaved();
+            loadTransformEditor(source, tool);
+          } catch (error) {
+            setResult("transform-result", false, `保存失败：${error.message}`, []);
+          } finally {
+            button.disabled = false;
+            button.textContent = "保存编排";
+          }
+        });
+        $("transform-delete").addEventListener("click", async () => {
+          const source = $("transform-source").value;
+          const tool = $("transform-tool").value;
+          if (!confirm(`确定删除 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排？`)) return;
+          try {
+            await api(`/transforms/${encodeURIComponent(source)}/${encodeURIComponent(tool)}`, { method: "DELETE" });
+            toast("已删除数据编排", "ok");
+            await refreshTransformSaved();
+            loadTransformEditor(source, tool);
+          } catch (error) {
+            setResult("transform-result", false, `删除失败：${error.message}`, []);
           }
         });
 
@@ -1343,7 +2877,9 @@
         }
         addSecurityRow();
         $("mcp-transport").dispatchEvent(new Event("change"));
+        syncCredentialForm();
         loadOverview();
+        loadCredentials();
       })();
     </script>
   </body>
