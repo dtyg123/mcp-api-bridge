@@ -193,10 +193,16 @@
       .try-result { margin-top: 14px; }
       .try-result .meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
       .try-result pre { max-height: 420px; }
+      .try-dual { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+      .try-pane { min-width: 0; }
+      .try-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+      .try-pane-head button { padding: 3px 9px; font-size: 11.5px; }
+      .try-pane pre { max-height: 420px; }
       .try-count { margin-top: 6px; }
       @media (max-width: 900px) {
         .tester { grid-template-columns: 1fr; }
         .tester-side { position: static; }
+        .try-dual { grid-template-columns: 1fr; }
       }
 
       .toast {
@@ -1512,9 +1518,10 @@
             const metaBits = [];
             if (body.method && body.path) metaBits.push(`${body.method} ${body.path}`);
             metaBits.push(`${body.durationMs !== undefined ? body.durationMs : clientMs} ms`);
-            metaBits.push(`响应 ${JSON.stringify(body).length} 字符`);
+            const rawData = body.raw && body.raw.data !== undefined ? body.raw.data : body.data;
+            metaBits.push(`原始 ${prettyValue(rawData).length} / 处理后 ${prettyValue(body.data).length} 字符`);
             const headline = body.isError ? "上游返回错误" : "调用成功";
-            renderTryPanel(body.isError !== true, headline, metaBits, JSON.stringify(body, null, 2));
+            renderTryPanel(body.isError !== true, headline, metaBits, body);
           } catch (error) {
             const clientMs = Math.round(performance.now() - started);
             const metaBits = [];
@@ -1538,7 +1545,46 @@
           }
         }
 
-        function renderTryPanel(ok, headline, metaBits, payload) {
+        function prettyValue(value) {
+          if (value === undefined) return "";
+          if (typeof value === "string") return value;
+          try {
+            const text = JSON.stringify(value, null, 2);
+            return text === undefined ? String(value) : text;
+          } catch {
+            return String(value);
+          }
+        }
+
+        function appendTryPane(parent, title, text, note) {
+          const pane = document.createElement("div");
+          pane.className = "try-pane";
+          const head = document.createElement("div");
+          head.className = "try-pane-head";
+          const label = document.createElement("span");
+          label.textContent = title;
+          const copy = document.createElement("button");
+          copy.className = "ghost";
+          copy.textContent = "复制";
+          copy.addEventListener("click", () => copyText(text, title));
+          head.appendChild(label);
+          head.appendChild(copy);
+          pane.appendChild(head);
+          if (note) {
+            const hint = document.createElement("div");
+            hint.className = "sub";
+            hint.style.marginBottom = "6px";
+            hint.textContent = note;
+            pane.appendChild(hint);
+          }
+          const pre = document.createElement("pre");
+          pre.textContent =
+            text.length > 200000 ? `${text.slice(0, 200000)}\n…（已截断，共 ${text.length} 字符）` : text;
+          pane.appendChild(pre);
+          parent.appendChild(pane);
+        }
+
+        function renderTryPanel(ok, headline, metaBits, body) {
           const box = $("try-result");
           if (!box) return;
           box.innerHTML = "";
@@ -1553,17 +1599,33 @@
             span.textContent = bit;
             meta.appendChild(span);
           }
-          const copy = document.createElement("button");
-          copy.className = "ghost";
-          copy.textContent = "复制响应";
-          copy.style.marginLeft = "auto";
-          copy.addEventListener("click", () => copyText(payload, "响应"));
-          meta.appendChild(copy);
           box.appendChild(meta);
-          const pre = document.createElement("pre");
-          pre.textContent =
-            payload.length > 200000 ? `${payload.slice(0, 200000)}\n…（已截断，共 ${payload.length} 字符）` : payload;
-          box.appendChild(pre);
+
+          if (typeof body === "string") {
+            const pre = document.createElement("pre");
+            pre.textContent = body;
+            box.appendChild(pre);
+            return;
+          }
+
+          const dual = document.createElement("div");
+          dual.className = "try-dual";
+          const rawSource = body.raw && typeof body.raw === "object" ? body.raw : null;
+          const rawValue = rawSource && "data" in rawSource ? rawSource.data : body.data;
+          appendTryPane(
+            dual,
+            "原始响应（上游原样）",
+            prettyValue(rawValue),
+            rawSource ? "" : "服务端未返回原始响应，这里展示当前结果",
+          );
+          const transformed = body.transformed === true;
+          appendTryPane(
+            dual,
+            transformed ? "处理后响应（数据编排后）" : "处理后响应",
+            prettyValue(body.data),
+            transformed ? "" : "未配置数据编排，与原始响应一致",
+          );
+          box.appendChild(dual);
         }
 
         $("try-source").addEventListener("change", () => {

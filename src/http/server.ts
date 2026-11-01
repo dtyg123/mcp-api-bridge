@@ -112,8 +112,11 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
    * (and its text projection) with the blocks the user configured, so an API
    * consumer only sees the fields the admin decided to expose.
    */
-  const envelopeFor = (tool: BridgeTool, result: ToolResult): Record<string, unknown> => {
-    const envelope = toolEnvelope(tool, result);
+  const envelopeFor = (
+    tool: BridgeTool,
+    result: ToolResult,
+    envelope: Record<string, unknown> = toolEnvelope(tool, result),
+  ): Record<string, unknown> => {
     const transform = transforms.get(tool.source, tool.originalName);
     if (!transform) return envelope;
     try {
@@ -504,7 +507,15 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     try {
       const result = await tool.invoke(args);
       const raw = isPlainObject(body) && body.raw === true;
-      const payload = raw ? toolEnvelope(tool, result) : envelopeFor(tool, result);
+      const base = toolEnvelope(tool, result);
+      // The admin tester shows both the upstream response and the orchestrated
+      // one, so include the untouched envelope alongside the transformed result.
+      const payload = raw
+        ? base
+        : {
+            ...envelopeFor(tool, result, base),
+            raw: { ok: base.ok, isError: base.isError, text: base.text, data: base.data, meta: base.meta },
+          };
       res.json({
         ...payload,
         ...toolHttpMeta(tool),

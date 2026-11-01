@@ -355,6 +355,14 @@ test("response transforms reshape what the REST surface returns", async () => {
   assert.ok(rest.data.generatedAt);
   assert.ok(!("items" in rest.data));
 
+  // The admin tester gets both the transformed result and the raw upstream one.
+  const both = await adminPost("/admin/api/invoke", { source: "petstore-cred", tool: "listPets", arguments: { limit: 1 } });
+  assert.equal(both.status, 200);
+  assert.equal(both.json.transformed, true);
+  assert.ok(both.json.raw, "raw envelope is included");
+  assert.equal(both.json.raw.data.items.length, 1);
+  assert.ok(!("items" in both.json.data));
+
   // The admin tester can still ask for the raw upstream payload.
   const raw = await adminPost("/admin/api/invoke", { source: "petstore-cred", tool: "listPets", arguments: { limit: 1 }, raw: true });
   assert.equal(raw.status, 200);
