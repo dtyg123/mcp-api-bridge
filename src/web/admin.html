@@ -391,6 +391,7 @@
               <h2>接口测试</h2>
               <div class="hint" style="margin: -4px 0 12px">逐个调用接口，查看真实响应。请求会真实发往上游服务。</div>
               <label class="field"><span>来源</span><select id="try-source"></select></label>
+              <label class="field"><span>凭证（可选，测试时切换）</span><select id="try-credential"></select></label>
               <label class="field"><span>过滤</span><input id="try-search" type="text" placeholder="名称 / 描述关键词" /></label>
               <div class="try-list" id="try-list"><div class="empty">加载中…</div></div>
               <div class="hint try-count" id="try-count"></div>
@@ -550,48 +551,23 @@
               <label class="field"><span>描述</span><input id="api-desc" type="text" placeholder="宠物商店" /></label>
             </div>
 
-            <div class="seg" id="api-spec-seg" style="margin-bottom: 10px">
-              <button data-spec="url" class="active">文档地址</button>
-              <button data-spec="text">粘贴文档</button>
-            </div>
-            <label class="field" id="api-spec-url-wrap"><span>OpenAPI / Swagger 文档 URL 或本地路径 <em>*</em></span><input id="api-spec" type="text" placeholder="https://api.rainyun.com/openapi.json" /></label>
-            <label class="field" id="api-spec-text-wrap" hidden><span>文档内容（OpenAPI 3.x 或 Swagger 2.0，JSON / YAML）</span><textarea id="api-spec-text" style="min-height: 140px" placeholder='{ "openapi": "3.1.0", ... }  或  { "swagger": "2.0", ... }'></textarea></label>
+            <label class="field"><span>OpenAPI / Swagger 文档 <em>*</em>（填 URL / 本地路径，或直接粘贴 JSON/YAML 内容，自动识别）</span><textarea id="api-spec-input" style="min-height: 100px; font-family: var(--mono);" placeholder="https://api.rainyun.com/openapi.json&#10;或直接粘贴：{ &quot;openapi&quot;: &quot;3.1.0&quot;, ... } / { &quot;swagger&quot;: &quot;2.0&quot;, ... }"></textarea></label>
 
             <label class="field"><span>Base URL（留空则用文档里的 <code>servers[0].url</code>）</span><input id="api-baseurl" type="text" placeholder="https://api.example.com/v1" /></label>
 
             <div class="field">
               <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
-                认证方式（可选，三选一；避免重复注入同一个请求头）
+                凭证（可多选；在下方「🔑 全局凭证」卡片里新建 / 轮换，请求头名取自凭证自身）
               </span>
-              <div class="seg" id="api-auth-seg" style="margin-bottom: 6px">
-                <button type="button" data-auth="none" class="active">不需要</button>
-                <button type="button" data-auth="vault">复用全局凭证</button>
-                <button type="button" data-auth="scheme">按文档方案</button>
-              </div>
-            </div>
-
-            <div id="api-auth-vault" hidden>
-              <div class="field">
-                <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
-                  勾选要引用的全局凭证（在下方「🔑 全局凭证」卡片里管理，轮换密钥只改一处）
-                </span>
-                <div id="api-credential-refs" class="checkline" style="margin-bottom: 0"></div>
-              </div>
-            </div>
-
-            <div id="api-auth-scheme" hidden>
-              <div class="field">
-                <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
-                  按文档 <code>securitySchemes</code> 的方案名填凭证
-                </span>
-                <div id="api-security-rows"></div>
-                <button type="button" class="linkbtn" id="api-security-add">+ 添加凭证</button>
-              </div>
+              <div id="api-credential-refs" class="checkline" style="margin-bottom: 0"></div>
             </div>
 
             <details class="adv">
               <summary>高级选项（额外请求头 / 过滤 / 暴露面 / 超时）</summary>
               <label class="field"><span>额外请求头（<b>非认证</b>，每行 <code>Header: value</code>，如 User-Agent）</span><textarea id="api-headers" style="min-height: 56px" placeholder="User-Agent: mcp-api-bridge"></textarea></label>
+              <span class="checkline" style="margin-bottom: 8px">
+                <label><input type="checkbox" id="api-allow-cred-switch" /> 允许调用方切换凭证（REST 请求头 <code>x-bridge-credential</code>，仅限本来源引用的凭证）</label>
+              </span>
               <label class="field"><span>只包含（逗号分隔，支持 <code>*</code>，如 <code>GET /pet/*</code>）</span><input id="api-include" type="text" placeholder="留空 = 全部" /></label>
               <label class="field"><span>排除（逗号分隔）</span><input id="api-exclude" type="text" placeholder="DELETE /pet/*" /></label>
               <div class="checkline">
@@ -655,6 +631,7 @@
               <div class="form-actions" style="margin-top:4px">
                 <button class="primary" id="scred-save">保存</button>
                 <button class="ghost" id="scred-cancel">取消</button>
+                <button class="ghost" type="button" id="scred-from-scheme" title="用上方文档的 securitySchemes 自动填请求头名">按文档方案填入</button>
               </div>
             </div>
             <div class="form-actions" style="margin-top:8px">
@@ -1525,9 +1502,15 @@
           button.textContent = "请求中…";
           const started = performance.now();
           try {
+            const credential = $("try-credential") ? $("try-credential").value : "";
             const body = await api("/invoke", {
               method: "POST",
-              body: JSON.stringify({ source: tryState.source, tool: tool.name, arguments: args }),
+              body: JSON.stringify({
+                source: tryState.source,
+                tool: tool.name,
+                arguments: args,
+                ...(credential ? { credential } : {}),
+              }),
             });
             const clientMs = Math.round(performance.now() - started);
             const metaBits = [];
@@ -1764,15 +1747,15 @@
           $("mcp-remote").hidden = stdio;
         });
 
-        let apiSpecMode = "url";
-        document.querySelectorAll("#api-spec-seg button").forEach((button) => {
-          button.addEventListener("click", () => {
-            apiSpecMode = button.dataset.spec;
-            document.querySelectorAll("#api-spec-seg button").forEach((other) => other.classList.toggle("active", other === button));
-            $("api-spec-url-wrap").hidden = apiSpecMode !== "url";
-            $("api-spec-text-wrap").hidden = apiSpecMode !== "text";
-          });
-        });
+        /** 判断输入的是文档地址/路径，还是直接粘贴的文档内容。 */
+        function looksLikeSpecText(raw) {
+          const text = String(raw || "").trim();
+          if (!text) return false;
+          if (text.startsWith("{") || text.startsWith("[")) return true;
+          if (text.startsWith("---")) return true;
+          if (text.includes("\n") && /(^|\n)\s*(openapi|swagger|paths)\s*:/i.test(text)) return true;
+          return false;
+        }
 
         // ---------------- add: MCP ----------------
         function buildMcpEntry() {
@@ -1887,69 +1870,24 @@
         });
 
         // ---------------- add: OpenAPI ----------------
-        // Auth is one of: none / reuse a global credential / per-spec scheme.
-        // Keeping it mutually exclusive avoids injecting the same header twice.
-        let apiAuthMode = "none";
-        function setApiAuthMode(mode) {
-          apiAuthMode = ["vault", "scheme"].includes(mode) ? mode : "none";
-          document.querySelectorAll("#api-auth-seg button").forEach((button) => {
-            button.classList.toggle("active", button.dataset.auth === apiAuthMode);
-          });
-          $("api-auth-vault").hidden = apiAuthMode !== "vault";
-          $("api-auth-scheme").hidden = apiAuthMode !== "scheme";
-        }
-        document.querySelectorAll("#api-auth-seg button").forEach((button) => {
-          button.addEventListener("click", () => setApiAuthMode(button.dataset.auth));
-        });
-
-        function addSecurityRow(scheme = "", token = "", username = "", password = "") {
-          const row = document.createElement("div");
-          row.className = "kv-row";
-          row.innerHTML = `
-            <input type="text" placeholder="方案名" value="" data-sec="scheme" />
-            <input type="text" placeholder="token / apiKey" value="" data-sec="token" />
-            <input type="text" placeholder="username" value="" data-sec="username" />
-            <input type="text" placeholder="password" value="" data-sec="password" />
-            <button class="ghost" style="padding: 4px 9px">✕</button>`;
-          const inputs = row.querySelectorAll("input");
-          inputs[0].value = scheme;
-          inputs[1].value = token;
-          inputs[2].value = username;
-          inputs[3].value = password;
-          row.querySelector("button").addEventListener("click", () => row.remove());
-          $("api-security-rows").appendChild(row);
-        }
-        $("api-security-add").addEventListener("click", () => addSecurityRow());
-
-        function collectSecurity() {
-          const security = {};
-          for (const row of $("api-security-rows").children) {
-            const scheme = row.querySelector('[data-sec="scheme"]').value.trim();
-            if (!scheme) continue;
-            const token = row.querySelector('[data-sec="token"]').value.trim();
-            const username = row.querySelector('[data-sec="username"]').value.trim();
-            const password = row.querySelector('[data-sec="password"]').value;
-            const credential = {};
-            if (token) credential.token = token;
-            if (username) credential.username = username;
-            if (password) credential.password = password;
-            security[scheme] = credential;
-          }
-          return security;
-        }
-
         function buildApiEntry() {
           const name = $("api-name").value.trim();
           if (!name) throw new Error("请填写名称");
+          const specRaw = $("api-spec-input").value.trim();
+          if (!specRaw) throw new Error("请填写 OpenAPI 文档地址，或直接粘贴文档内容");
+          const isText = looksLikeSpecText(specRaw);
           const checkedRefs = [...$("api-credential-refs").querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
           const entry = {
             name,
             description: $("api-desc").value.trim() || undefined,
-            spec: apiSpecMode === "text" ? "" : $("api-spec").value.trim(),
+            spec: isText ? "pending" : specRaw,
             baseUrl: $("api-baseurl").value.trim(),
             headers: parseKv($("api-headers").value, ":"),
-            security: apiAuthMode === "scheme" ? collectSecurity() : {},
-            credentialRefs: apiAuthMode === "vault" ? checkedRefs : [],
+            // The UI now uses credentials only; keep any legacy per-scheme
+            // credentials from the source being edited instead of erasing them.
+            security: state.editing.security && Object.keys(state.editing.security).length ? state.editing.security : {},
+            credentialRefs: checkedRefs,
+            allowCredentialSwitch: $("api-allow-cred-switch").checked,
             include: splitList($("api-include").value),
             exclude: splitList($("api-exclude").value),
             exposure: {
@@ -1958,14 +1896,7 @@
               prefix: $("api-prefix").value.trim(),
             },
           };
-          if (apiSpecMode === "text") {
-            const specText = $("api-spec-text").value.trim();
-            if (!specText) throw new Error("请粘贴 OpenAPI 文档内容");
-            entry.specText = specText;
-            entry.spec = "pending";
-          } else if (!entry.spec) {
-            throw new Error("请填写 OpenAPI 文档地址");
-          }
+          if (isText) entry.specText = specRaw;
           const timeout = Number($("api-timeout").value);
           if (Number.isFinite(timeout) && timeout > 0) entry.timeoutMs = timeout;
           return entry;
@@ -1974,21 +1905,12 @@
         function fillApiForm(entry) {
           $("api-name").value = entry.name || "";
           $("api-desc").value = entry.description || "";
-          const spec = entry.spec || "";
-          const isRemote = /^https?:\/\//i.test(spec) || !spec;
-          document.querySelector(`#api-spec-seg button[data-spec="${isRemote ? "url" : "text"}"]`)?.click();
-          if (isRemote) $("api-spec").value = spec;
-          else $("api-spec-text").value = spec;
+          $("api-spec-input").value = entry.spec || entry.specText || "";
           $("api-baseurl").value = entry.baseUrl || "";
           $("api-headers").value = kvText(entry.headers);
-          const hasRefs = Array.isArray(entry.credentialRefs) && entry.credentialRefs.length > 0;
-          const hasSecurity = entry.security && Object.keys(entry.security).length > 0;
-          setApiAuthMode(hasRefs ? "vault" : hasSecurity ? "scheme" : "none");
+          $("api-allow-cred-switch").checked = entry.allowCredentialSwitch === true;
+          state.editing.security = entry.security && Object.keys(entry.security).length ? entry.security : undefined;
           renderApiCredentialChoices(entry.credentialRefs || []);
-          $("api-security-rows").innerHTML = "";
-          for (const [scheme, credential] of Object.entries(entry.security || {})) {
-            addSecurityRow(scheme, credential.token || credential.apiKey || "", credential.username || "", credential.password || "");
-          }
           $("api-include").value = (entry.include || []).join(", ");
           $("api-exclude").value = (entry.exclude || []).join(", ");
           $("api-rest").checked = entry.exposure ? entry.exposure.rest !== false : true;
@@ -2004,13 +1926,11 @@
           updateModeLabels();
           $("api-name").value = "";
           $("api-desc").value = "";
-          $("api-spec").value = "";
-          $("api-spec-text").value = "";
+          $("api-spec-input").value = "";
           $("api-baseurl").value = "";
           $("api-headers").value = "";
-          setApiAuthMode("none");
+          $("api-allow-cred-switch").checked = false;
           renderApiCredentialChoices([]);
-          $("api-security-rows").innerHTML = "";
           $("api-include").value = "";
           $("api-exclude").value = "";
           $("api-timeout").value = "";
@@ -2105,12 +2025,32 @@
           }
         }
 
+        function fillTryCredentials() {
+          const select = $("try-credential");
+          if (!select) return;
+          const current = select.value;
+          select.innerHTML = "";
+          const fallback = document.createElement("option");
+          fallback.value = "";
+          fallback.textContent = "（来源默认凭证）";
+          select.appendChild(fallback);
+          for (const credential of credState.credentials) {
+            const option = document.createElement("option");
+            option.value = credential.name;
+            const detail = credential.type === "header" ? credential.key : credential.type;
+            option.textContent = `${credential.name}（${detail || credential.type}）`;
+            select.appendChild(option);
+          }
+          select.value = [...select.options].some((option) => option.value === current) ? current : "";
+        }
+
         async function loadCredentials() {
           try {
             const data = await api("/credentials");
             credState.credentials = data.credentials || [];
             renderScratchCredentials();
             renderApiCredentialChoices();
+            fillTryCredentials();
           } catch (error) {
             const box = $("scratch-cred-list");
             if (box) box.innerHTML = `<span class="sub">加载失败：${escapeHtml(error.message)}</span>`;
@@ -2148,6 +2088,42 @@
           const type = $("scred-type").value;
           $("scred-key-wrap").hidden = type !== "header";
           $("scred-basic-wrap").hidden = type !== "basic";
+        });
+        $("scred-from-scheme")?.addEventListener("click", async () => {
+          const raw = $("api-spec-input") ? $("api-spec-input").value.trim() : "";
+          if (!raw) {
+            toast("请先在上方「OpenAPI / Swagger 文档」填入文档地址或内容", "err");
+            return;
+          }
+          const btn = $("scred-from-scheme");
+          btn.disabled = true;
+          try {
+            const data = await api("/spec/schemes", {
+              method: "POST",
+              body: JSON.stringify(looksLikeSpecText(raw) ? { specText: raw } : { spec: raw }),
+            });
+            const schemes = data.schemes || [];
+            if (!schemes.length) {
+              toast("文档里没有 securitySchemes，请手动填写请求头名", "");
+              return;
+            }
+            const scheme = schemes.find((item) => item.headerName) || schemes[0];
+            const headerName = scheme.headerName || "";
+            $("scred-name").value = scheme.name || "credential";
+            $("scred-type").value =
+              headerName === "Authorization"
+                ? String(scheme.httpScheme || "").toLowerCase() === "basic"
+                  ? "basic"
+                  : "bearer"
+                : "header";
+            $("scred-type").dispatchEvent(new Event("change"));
+            $("scred-key").value = headerName || "";
+            toast(`已按文档方案「${scheme.name}」填入${headerName ? `请求头名 ${headerName}` : "（Authorization）"}`, "ok");
+          } catch (error) {
+            toast(`读取文档方案失败：${error.message}`, "err");
+          } finally {
+            btn.disabled = false;
+          }
         });
         $("scred-save")?.addEventListener("click", async () => {
           const btn = $("scred-save");
@@ -3019,7 +2995,6 @@
         if (BOOT.authRequired) {
           $("token").placeholder = "需要管理员 Token";
         }
-        addSecurityRow();
         switchAddKind("mcp");
         $("mcp-transport").dispatchEvent(new Event("change"));
         loadOverview();

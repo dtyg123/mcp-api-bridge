@@ -551,3 +551,86 @@ test("reload re-reads the managed file from disk", async () => {
   assert.equal(reloaded.ok, true);
   assert.ok(!reloaded.sources.some((source: any) => source.name === "pasted"));
 });
+
+test("the spec-schemes endpoint exposes security header names", async () => {
+  const res = await adminPost("/admin/api/spec/schemes", { spec: specPath });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.ok, true);
+  const scheme = (res.json.schemes || []).find((item: any) => item.name === "ApiKeyAuth");
+  assert.ok(scheme, "ApiKeyAuth scheme is present");
+  assert.equal(scheme.type, "apiKey");
+  assert.equal(scheme.in, "header");
+  assert.equal(scheme.headerName, "x-api-key");
+});
+
+test("admin and REST callers can switch credentials when allowed", async () => {
+  for (const [name, value] of [["cred-a", "a"], ["cred-b", "b"], ["cred-c", "c"]]) {
+    const created = await adminPost("/admin/api/credentials", {
+      credential: { name, type: "header", key: "X-Cred", value },
+    });
+    assert.equal(created.status, 200);
+  }
+
+  const switchSource = await adminPost("/admin/api/sources", {
+    kind: "api",
+    entry: {
+      name: "petstore-switch",
+      spec: specPath,
+      baseUrl: mock.url,
+      credentialRefs: ["cred-a", "cred-b"],
+      allowCredentialSwitch: true,
+    },
+  });
+  assert.equal(switchSource.status, 200);
+
+  const lastHeaders = () => mock.requests[mock.requests.length - 1].headers;
+
+  // Defaults: both references merge, the last one wins on the shared header.
+  await adminPost("/admin/api/invoke", { source: "petstore-switch", tool: "listPets", arguments: { limit: 1 } });
+  assert.equal(lastHeaders()["x-cred"], "b");
+
+  // Admin tester can switch for one call.
+  const switched = await adminPost("/admin/api/invoke", {
+    source: "petstore-switch",
+    tool: "listPets",
+    arguments: { limit: 1 },
+    credential: "cred-a",
+  });
+  assert.equal(switched.status, 200);
+  assert.equal(lastHeaders()["x-cred"], "a");
+
+  const unknown = await adminPost("/admin/api/invoke", {
+    source: "petstore-switch",
+    tool: "listPets",
+    arguments: { limit: 1 },
+    credential: "missing",
+  });
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.json.error, "unknown_credential");
+
+  // REST caller switches via the header.
+  const restSwitch = await fetch(`${base}/api/petstore-switch/listPets?limit=1`, {
+    headers: { "x-bridge-credential": "cred-a" },
+  });
+  assert.equal(restSwitch.status, 200);
+  assert.equal(lastHeaders()["x-cred"], "a");
+
+  // A credential the source does not reference is rejected.
+  const notAllowed = await fetch(`${base}/api/petstore-switch/listPets?limit=1`, {
+    headers: { "x-bridge-credential": "cred-c" },
+  });
+  assert.equal(notAllowed.status, 400);
+  assert.equal((await notAllowed.json()).error, "credential_not_allowed");
+
+  // Sources that do not opt in reject the switch header.
+  const noSwitch = await adminPost("/admin/api/sources", {
+    kind: "api",
+    entry: { name: "petstore-noswitch", spec: specPath, baseUrl: mock.url, credentialRefs: ["cred-a"] },
+  });
+  assert.equal(noSwitch.status, 200);
+  const denied = await fetch(`${base}/api/petstore-noswitch/listPets?limit=1`, {
+    headers: { "x-bridge-credential": "cred-a" },
+  });
+  assert.equal(denied.status, 403);
+  assert.equal((await denied.json()).error, "credential_switch_disabled");
+});

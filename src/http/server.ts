@@ -11,6 +11,7 @@ import type { SourceKind, SourceStore } from "../admin/store.js";
 import { applyTransform, discoverFields, type TransformConfig, type TransformStore } from "../admin/transforms.js";
 import { buildOpenApiDocument } from "../convert/tools-to-openapi.js";
 import { createGatewayServer, describeTools } from "../mcp/gateway.js";
+import { loadOpenApiDocument } from "../openapi/loader.js";
 import type { Registry } from "../registry.js";
 import { coerceQueryArgs, validateArgs } from "../util/args.js";
 import { ToolArgumentError } from "../util/errors.js";
@@ -311,8 +312,33 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       return;
     }
 
+    // Optional per-request credential switch (only when the source allows it,
+    // and only among the credentials it already references).
+    const requestedCredential = req.get("x-bridge-credential");
+    let overrideHeaders: Record<string, string> | undefined;
+    if (requestedCredential) {
+      const apiConfig = store.config.apis.find((api) => api.name === source);
+      if (!apiConfig?.allowCredentialSwitch) {
+        res.status(403).json({
+          ok: false,
+          error: "credential_switch_disabled",
+          message: `来源 "${source}" 未允许调用方切换凭证（allowCredentialSwitch=false）。`,
+        });
+        return;
+      }
+      if (!apiConfig.credentialRefs.includes(requestedCredential)) {
+        res.status(400).json({
+          ok: false,
+          error: "credential_not_allowed",
+          message: `凭证 "${requestedCredential}" 未被来源 "${source}" 引用。`,
+        });
+        return;
+      }
+      overrideHeaders = credentials.headersFor([requestedCredential]);
+    }
+
     try {
-      res.json(envelopeFor(tool, await tool.invoke(args)));
+      res.json(envelopeFor(tool, await tool.invoke(args, { headers: overrideHeaders })));
     } catch (error) {
       if (error instanceof ToolArgumentError) {
         res.status(400).json({ ok: false, error: "invalid_arguments", message: error.message });
@@ -503,9 +529,20 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       return;
     }
 
+    // Admin tester may switch the credential for this single call.
+    let overrideHeaders: Record<string, string> | undefined;
+    const chosenCredential = typeof body.credential === "string" ? body.credential.trim() : "";
+    if (chosenCredential) {
+      if (!credentials.list().some((credential) => credential.name === chosenCredential)) {
+        res.status(400).json({ ok: false, error: "unknown_credential", message: `没有名为 "${chosenCredential}" 的凭证。` });
+        return;
+      }
+      overrideHeaders = credentials.headersFor([chosenCredential]);
+    }
+
     const startedAt = Date.now();
     try {
-      const result = await tool.invoke(args);
+      const result = await tool.invoke(args, { headers: overrideHeaders });
       const raw = isPlainObject(body) && body.raw === true;
       const base = toolEnvelope(tool, result);
       // The admin tester shows both the upstream response and the orchestrated
@@ -824,6 +861,50 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       configDir: store.config.configDir,
     });
     res.status(result.ok ? 200 : 422).json(result);
+  });
+
+  /** Read the document's security schemes so the UI can prefill header names. */
+  router.post(`${adminApi}/spec/schemes`, adminAuth, async (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) ? req.body : {};
+    const entry = isPlainObject(body.entry) ? body.entry : body;
+    let spec = typeof entry.spec === "string" ? entry.spec.trim() : "";
+    const specText = typeof entry.specText === "string" ? entry.specText.trim() : "";
+    try {
+      if (!spec && specText) spec = await store.writeSpecFile("schemes-preview", specText);
+      if (!spec) {
+        res.status(400).json({ ok: false, error: "missing_spec", message: "需要 spec（文档地址）或 specText（文档内容）。" });
+        return;
+      }
+      const loaded = await loadOpenApiDocument(spec, { configDir: store.config.configDir, logger });
+      const components = isPlainObject(loaded.document.components) ? loaded.document.components : {};
+      const schemes = isPlainObject(components.securitySchemes) ? components.securitySchemes : {};
+      const result = Object.entries(schemes).map(([name, raw]) => {
+        const scheme = isPlainObject(raw) ? raw : {};
+        const type = typeof scheme.type === "string" ? scheme.type : "";
+        const httpScheme = typeof scheme.scheme === "string" ? scheme.scheme.toLowerCase() : "";
+        const headerName =
+          type === "apiKey" && typeof scheme.name === "string"
+            ? scheme.name
+            : type === "http" || type === "oauth2" || type === "openIdConnect"
+              ? "Authorization"
+              : "";
+        return {
+          name,
+          type,
+          in: typeof scheme.in === "string" ? scheme.in : undefined,
+          httpScheme: httpScheme || undefined,
+          headerName,
+          description: typeof scheme.description === "string" ? scheme.description : undefined,
+        };
+      });
+      res.json({ ok: true, convertedFromSwagger2: loaded.convertedFromSwagger2, schemes: result });
+    } catch (error) {
+      res.status(400).json({
+        ok: false,
+        error: "spec_load_failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   router.post(`${adminApi}/reload`, adminAuth, async (_req: Request, res: Response) => {

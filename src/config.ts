@@ -60,6 +60,11 @@ export type ApiConfig = {
   security: Record<string, SecurityCredential>;
   /** Names of saved credentials (管理台「认证信息」) merged into `headers`. */
   credentialRefs: string[];
+  /**
+   * When true, REST callers may pick one of `credentialRefs` per request via
+   * the `x-bridge-credential` header (admin-only switching is always allowed).
+   */
+  allowCredentialSwitch?: boolean;
   include?: string[];
   exclude?: string[];
   exposure: ExposureConfig;
@@ -225,6 +230,7 @@ export function normalizeApi(raw: unknown, index: number, configDir: string): Ap
     headers: asStringMap(raw.headers),
     security,
     credentialRefs: asStringArray(raw.credentialRefs) ?? [],
+    allowCredentialSwitch: raw.allowCredentialSwitch === true,
     include: asStringArray(raw.include),
     exclude: asStringArray(raw.exclude),
     exposure: normalizeExposure(raw.exposure, ""),

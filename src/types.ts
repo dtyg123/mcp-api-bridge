@@ -22,6 +22,8 @@ export interface ToolResult {
 
 export interface InvokeContext {
   signal?: AbortSignal;
+  /** Extra headers for this invocation; same-named headers are overridden (case-insensitive). */
+  headers?: Record<string, string>;
 }
 
 export type ToolSourceType = "mcp" | "openapi";

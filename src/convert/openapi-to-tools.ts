@@ -329,7 +329,7 @@ function buildSingleTool(input: BuildToolsOptions & {
     pathTemplate,
     annotations: { readOnlyHint: method === "get" || method === "head" },
     request,
-    invoke: async (args, ctx) => executeOpenApiTool(request, args, ctx?.signal),
+    invoke: async (args, ctx) => executeOpenApiTool(request, args, ctx?.signal, ctx?.headers),
   };
 }
 
@@ -354,7 +354,11 @@ type PreparedRequest = {
   init: RequestInit;
 };
 
-export function buildRequest(plan: RequestPlan, args: Record<string, unknown>): PreparedRequest {
+export function buildRequest(
+  plan: RequestPlan,
+  args: Record<string, unknown>,
+  overrideHeaders?: Record<string, string>,
+): PreparedRequest {
   const headers: Record<string, string> = { accept: "application/json, text/plain;q=0.9, */*;q=0.8", ...plan.headers };
   const query: Array<[string, string]> = [];
   const cookies: string[] = [];
@@ -453,6 +457,16 @@ export function buildRequest(plan: RequestPlan, args: Record<string, unknown>): 
   applySecurity(plan, headers, query, cookies);
 
   if (cookies.length > 0) headers.cookie = cookies.join("; ");
+  // Per-request overrides (e.g. a different credential chosen by the caller)
+  // replace same-named headers, case-insensitively.
+  if (overrideHeaders) {
+    for (const [key, value] of Object.entries(overrideHeaders)) {
+      for (const existing of Object.keys(headers)) {
+        if (existing.toLowerCase() === key.toLowerCase()) delete headers[existing];
+      }
+      headers[key] = value;
+    }
+  }
 
   const url = new URL(plan.baseUrl.replace(/\/$/, "") + (path.startsWith("/") ? path : `/${path}`));
   for (const [key, value] of query) url.searchParams.append(key, value);
@@ -549,8 +563,9 @@ export async function executeOpenApiTool(
   plan: RequestPlan,
   args: Record<string, unknown>,
   signal?: AbortSignal,
+  overrideHeaders?: Record<string, string>,
 ): Promise<ToolResult> {
-  const prepared = buildRequest(plan, args);
+  const prepared = buildRequest(plan, args, overrideHeaders);
   const timeout = AbortSignal.timeout(plan.timeoutMs);
   const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
