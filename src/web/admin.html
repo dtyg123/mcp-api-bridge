@@ -1612,14 +1612,17 @@
         }
 
         async function deleteSource(source) {
-          if (!source.managed) {
-            toast("该来源来自 bridge.config.yaml，请修改配置文件后重启。", "err");
-            return;
-          }
-          if (!confirm(`确定删除来源「${source.name}」？该操作只移除管理台里的记录。`)) return;
+          const hint = source.managed
+            ? "该操作只移除管理台里的记录。"
+            : "该来源来自 bridge.config.yaml，将从运行中的网关移除，并在管理台数据里记录「排除」（不修改你的配置文件，重启后也不会自动恢复）。";
+          if (!confirm(`确定删除来源「${source.name}」？${hint}`)) return;
           try {
-            await api(`/sources/${source.kind}/${encodeURIComponent(source.name)}`, { method: "DELETE" });
-            toast(`已删除「${source.name}」`, "ok");
+            const data = await api(`/sources/${source.kind}/${encodeURIComponent(source.name)}`, { method: "DELETE" });
+            if (data.action === "excluded") {
+              toast(`已移除「${source.name}」（来自配置文件，已记录排除）`, "ok");
+            } else {
+              toast(`已删除「${source.name}」`, "ok");
+            }
             await loadOverview();
           } catch (error) {
             toast(`删除失败：${error.message}`, "err");

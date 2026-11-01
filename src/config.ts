@@ -331,10 +331,17 @@ export async function loadConfig(configPath: string): Promise<BridgeConfig> {
 export type ManagedPayload = {
   mcpServers: unknown[];
   apis: unknown[];
+  /**
+   * Sources that exist in bridge.config.yaml but have been hidden from the
+   * running gateway through the admin UI. Persisted here (not in the YAML) so
+   * deleting a file-based source is durable across restarts without editing the
+   * user's hand-written config.
+   */
+  excludes: Array<{ kind: "mcp" | "api"; name: string }>;
 };
 
 export function emptyManagedPayload(): ManagedPayload {
-  return { mcpServers: [], apis: [] };
+  return { mcpServers: [], apis: [], excludes: [] };
 }
 
 /**
@@ -351,7 +358,15 @@ export function mergeSources(
   onWarning?: (message: string) => void,
   options?: { resolveCredentialHeaders?: (names: string[]) => Record<string, string>; onMissingCredential?: (name: string) => void },
 ): BridgeConfig {
-  const mcpServers = [...base.mcpServers];
+  const excludes = managed.excludes ?? [];
+  const excluded: Record<"mcp" | "api", Set<string>> = {
+    mcp: new Set(excludes.filter((e) => e.kind === "mcp").map((e) => e.name)),
+    api: new Set(excludes.filter((e) => e.kind === "api").map((e) => e.name)),
+  };
+
+  // Exclusions hide file-based sources; an explicit managed entry with the same
+  // name still wins (that is how "re-adding" a deleted source works).
+  const mcpServers = [...base.mcpServers].filter((server) => !excluded.mcp.has(server.name));
   managed.mcpServers.forEach((raw, index) => {
     try {
       const normalized = normalizeMcpServer(raw, index, base.configDir);
@@ -363,7 +378,7 @@ export function mergeSources(
     }
   });
 
-  const apis = [...base.apis];
+  const apis = [...base.apis].filter((api) => !excluded.api.has(api.name));
   managed.apis.forEach((raw, index) => {
     try {
       const normalized = normalizeApi(raw, index, base.configDir);

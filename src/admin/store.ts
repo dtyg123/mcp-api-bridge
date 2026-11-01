@@ -64,9 +64,16 @@ export class SourceStore {
       const text = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(text);
       if (isPlainObject(parsed)) {
+        const rawExcludes = (parsed as { excludes?: unknown }).excludes;
         this.managed = {
           mcpServers: Array.isArray(parsed.mcpServers) ? parsed.mcpServers : [],
           apis: Array.isArray(parsed.apis) ? parsed.apis : [],
+          excludes: Array.isArray(rawExcludes)
+            ? rawExcludes.filter(
+                (e): e is { kind: "mcp" | "api"; name: string } =>
+                  isPlainObject(e) && (e.kind === "mcp" || e.kind === "api") && typeof e.name === "string",
+              )
+            : [],
         };
       }
       this.logger.info("Loaded UI-managed sources", {
@@ -121,6 +128,8 @@ export class SourceStore {
 
   async upsert(kind: SourceKind, raw: unknown): Promise<McpServerConfig | ApiConfig> {
     const normalized = this.normalize(kind, raw);
+    // Re-adding a previously excluded source clears the exclusion so it reappears.
+    this.managed.excludes = this.managed.excludes.filter((e) => !(e.kind === kind && e.name === normalized.name));
     const list = kind === "mcp" ? this.managed.mcpServers : this.managed.apis;
     const index = list.findIndex((entry) => isPlainObject(entry) && entry.name === normalized.name);
     if (index >= 0) list[index] = normalized;
@@ -135,6 +144,19 @@ export class SourceStore {
     const before = this.managed[key].length;
     this.managed[key] = this.managed[key].filter((entry) => !(isPlainObject(entry) && entry.name === name));
     if (this.managed[key].length === before) return false;
+    await this.persist();
+    this.rebuild();
+    return true;
+  }
+
+  isExcluded(kind: SourceKind, name: string): boolean {
+    return this.managed.excludes.some((e) => e.kind === kind && e.name === name);
+  }
+
+  /** Hide a bridge.config.yaml source from the running gateway (idempotent). */
+  async exclude(kind: SourceKind, name: string): Promise<boolean> {
+    if (this.isExcluded(kind, name)) return false;
+    this.managed.excludes.push({ kind, name });
     await this.persist();
     this.rebuild();
     return true;
@@ -184,7 +206,12 @@ export class SourceStore {
 
   private async persist(): Promise<void> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
-    const payload = { version: 1, mcpServers: this.managed.mcpServers, apis: this.managed.apis };
+    const payload = {
+      version: 1,
+      mcpServers: this.managed.mcpServers,
+      apis: this.managed.apis,
+      excludes: this.managed.excludes,
+    };
     const temporary = `${this.filePath}.tmp`;
     await writeFile(temporary, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
     await rename(temporary, this.filePath);

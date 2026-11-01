@@ -753,20 +753,28 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       return;
     }
     const name = req.params.name;
+    // Remove a managed (UI-added) entry, then hide any matching config-file
+    // source. Doing both means a "taken over" source disappears completely, and
+    // a file-only source is excluded from the running gateway (persisted, so it
+    // stays gone after a restart without touching bridge.config.yaml).
     const removed = await store.remove(kind, name);
-    if (!removed) {
-      const fromFile = kind === "mcp" ? store.baseConfig.mcpServers.some((s) => s.name === name) : store.baseConfig.apis.some((a) => a.name === name);
+    const excluded = await store.exclude(kind, name);
+    if (!removed && !excluded) {
       res.status(404).json({
         ok: false,
-        error: "not_managed",
-        message: fromFile
-          ? `"${name}" 来自配置文件，而不是管理台；请修改 bridge.config.yaml 后重启。`
-          : `管理台里没有名为 "${name}" 的 ${kind} 来源。`,
+        error: "no_such_source",
+        message: `没有名为 "${name}" 的 ${kind} 来源。`,
       });
       return;
     }
     await applyStoreConfig();
-    res.json({ ok: true, kind, name, tools: registry.toolCount });
+    res.json({
+      ok: true,
+      kind,
+      name,
+      action: removed ? "removed" : "excluded",
+      tools: registry.toolCount,
+    });
   });
 
   router.post(`${adminApi}/test`, adminAuth, async (req: Request, res: Response) => {

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { ConfigError, loadConfig } from "../src/config.js";
+import { ConfigError, loadConfig, mergeSources } from "../src/config.js";
 
 async function withConfig(content: string, run: (file: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), "bridge-config-"));
@@ -95,4 +95,27 @@ test("CLI style JSON configs are accepted", async () => {
     assert.deepEqual(config.mcpServers, []);
     assert.deepEqual(config.apis, []);
   });
+});
+
+test("mergeSources drops file-based sources listed in excludes", () => {
+  const base = {
+    configDir: process.cwd(),
+    mcpServers: [{ name: "echo", transport: { type: "stdio", command: "node", args: ["x.js"] } }],
+    apis: [
+      { name: "petstore", spec: "x.yaml", baseUrl: "http://x" },
+      { name: "other", spec: "y.yaml", baseUrl: "http://y" },
+    ],
+  } as any;
+  const merged = mergeSources(base, { mcpServers: [], apis: [], excludes: [{ kind: "api", name: "petstore" }] });
+  assert.equal(merged.apis.length, 1, "excluded api removed");
+  assert.equal(merged.apis[0].name, "other");
+  assert.equal(merged.mcpServers.length, 1, "non-excluded mcp kept");
+
+  // A managed override with the same name bypasses the exclusion.
+  const reAdded = mergeSources(base, {
+    mcpServers: [],
+    apis: [{ name: "petstore", spec: "x.yaml", baseUrl: "http://x" }],
+    excludes: [{ kind: "api", name: "petstore" }],
+  });
+  assert.equal(reAdded.apis.length, 2, "managed override re-adds the excluded source");
 });

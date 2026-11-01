@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -301,4 +301,36 @@ test("admin reload refreshes the registry", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.ok, true);
   assert.equal(payload.tools, 8);
+});
+
+test("file-based (config) sources can be deleted too", async () => {
+  // `petstore` comes from bridge.config, not the admin UI.
+  const before = await (await fetch(`${base}/admin/api/sources`)).json();
+  assert.ok(before.sources.some((s: any) => s.name === "petstore"), "petstore exists before delete");
+  assert.ok(!before.sources.find((s: any) => s.name === "petstore").managed, "petstore is a config source");
+
+  const del = await fetch(`${base}/admin/api/sources/api/petstore`, { method: "DELETE" });
+  const delPayload = await del.json();
+  assert.equal(del.status, 200);
+  assert.equal(delPayload.ok, true);
+  assert.equal(delPayload.action, "excluded");
+
+  const after = await (await fetch(`${base}/admin/api/sources`)).json();
+  assert.ok(!after.sources.some((s: any) => s.name === "petstore"), "petstore gone after delete");
+
+  // Exclusion is persisted to the store file (not the user's YAML).
+  const storeJson = JSON.parse(await readFile(path.join(tempDir, "data", "managed-sources.json"), "utf8"));
+  assert.ok(storeJson.excludes.some((e: any) => e.kind === "api" && e.name === "petstore"), "exclusion persisted");
+
+  // Re-adding the same name clears the exclusion and brings it back.
+  const reAdd = await fetch(`${base}/admin/api/sources`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "api", name: "petstore", spec: path.resolve("test/fixtures/petstore.openapi.json"), baseUrl: mock.url }),
+  });
+  assert.equal(reAdd.status, 200);
+  const reList = await (await fetch(`${base}/admin/api/sources`)).json();
+  assert.ok(reList.sources.some((s: any) => s.name === "petstore"), "petstore returns after re-add");
+  const storeJson2 = JSON.parse(await readFile(path.join(tempDir, "data", "managed-sources.json"), "utf8"));
+  assert.ok(!storeJson2.excludes.some((e: any) => e.kind === "api" && e.name === "petstore"), "exclusion cleared after re-add");
 });
