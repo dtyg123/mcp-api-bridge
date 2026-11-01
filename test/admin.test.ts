@@ -486,6 +486,16 @@ test("prompts are generated for every kind and follow the tool catalog", async (
   assert.match(scoped.text, /petstore__listPets/);
   assert.ok(!scoped.text.includes("echo__add"));
 
+  const service = await fetch(`${base}/admin/api/prompt?kind=service&source=petstore`, { headers: authHeaders() }).then(
+    (r) => r.json(),
+  );
+  assert.equal(service.ok, true);
+  assert.match(service.text, /独立服务 petstore/);
+  assert.match(service.text, /只使用上面列出的工具/);
+  assert.match(service.text, /petstore__listPets/);
+  assert.match(service.text, /\/mcp\/petstore/);
+  assert.ok(!service.text.includes("echo__add"));
+
   const rest = await fetch(`${base}/admin/api/prompt?kind=rest`, { headers: authHeaders() }).then((r) => r.json());
   assert.match(rest.text, /openapi\.json/);
   assert.match(rest.text, /POST .*\/api\/\{source\}\/\{tool\}/);

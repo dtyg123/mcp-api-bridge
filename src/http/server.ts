@@ -350,7 +350,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
 
   const promptKindOf = (value: unknown): PromptKind | undefined => {
     const raw = String(value ?? "");
-    if (raw === "mcp" || raw === "rest" || raw === "add-mcp" || raw === "add-api") return raw;
+    if (raw === "mcp" || raw === "rest" || raw === "service" || raw === "add-mcp" || raw === "add-api") return raw;
     return undefined;
   };
 

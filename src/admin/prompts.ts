@@ -1,6 +1,6 @@
 import type { BridgeTool } from "../types.js";
 
-export type PromptKind = "mcp" | "rest" | "add-mcp" | "add-api";
+export type PromptKind = "mcp" | "rest" | "service" | "add-mcp" | "add-api";
 
 export type PromptContext = {
   baseUrl: string;
@@ -124,6 +124,33 @@ export function buildPrompt(kind: PromptKind, ctx: PromptContext): string {
       "1. 需要参数细节时先读 `/openapi.json`，按其中 schema 传参。",
       "2. 不要把参数包在 `arguments` 里，请求体直接就是参数对象。",
       "3. 收到 `ok: false` 时把 `text` 里的错误信息告诉我，不要重试编造数据。",
+    );
+  } else if (kind === "service") {
+    // One self-contained prompt per service: single-source endpoint + only that
+    // service's tools, so an AI can be scoped to exactly this service.
+    const name = ctx.source || "全部来源";
+    lines.push(
+      "# 任务",
+      `请通过「MCP ⇄ API 网关」使用**独立服务 ${name}**。你只能调用下面列出的工具，不要访问其它服务。`,
+      "",
+      "# 连接信息（单来源）",
+      `- MCP 端点：\`${ctx.baseUrl}${ctx.mcpPath}${ctx.source ? `/${ctx.source}` : ""}\``,
+      `- REST 调用：\`POST ${ctx.baseUrl}${ctx.restPath}/${ctx.source ?? "{source}"}/{tool}\``,
+      `- OpenAPI 文档：\`${ctx.baseUrl}/openapi.json\``,
+      `- 鉴权：${authLine(ctx.mcpToken)}`,
+      "",
+      "# 客户端配置（只接入该服务）",
+      "```json",
+      mcpClientConfig(ctx),
+      "```",
+      "",
+      `# 该服务可用的工具（共 ${ctx.tools.length} 个）`,
+      toolLines(ctx.tools),
+      "",
+      "# 使用要求",
+      "1. 只使用上面列出的工具；需要其它服务的能力时先问我，不要自行切换。",
+      "2. 严格按每个工具的 `inputSchema` 传参；缺少必填信息先问我，不要编造。",
+      "3. 工具返回 `isError: true` 时，把错误原文告诉我，不要自行补充结果。",
     );
   } else if (kind === "add-mcp") {
     const hint = ctx.hint ?? {};

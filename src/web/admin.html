@@ -664,6 +664,13 @@
           </div>
         </div>
 
+        <h2 style="margin: 4px 0 6px; font-size: 15px">按服务：给 AI 的独立访问提示词</h2>
+        <div class="hint" style="margin: 0 0 12px">
+          每个服务都是一套独立的 MCP / API。复制某个服务的提示词给 AI，它就只能看到并调用该服务的工具（含单来源端点）。
+        </div>
+        <div id="prompt-services" class="grid cols-2" style="margin-bottom: 20px"></div>
+
+        <h2 style="margin: 4px 0 10px; font-size: 15px">通用连接提示词</h2>
         <div class="grid cols-2">
           <div class="card prompt-card">
             <div class="head">
@@ -2679,10 +2686,10 @@
         $("transform-delete").addEventListener("click", deleteTransform);
 
         // ---------------- prompts ----------------
-        async function fetchPrompt(kind) {
+        async function fetchPromptFor(kind, sourceOverride) {
           const params = new URLSearchParams({ kind });
-          const source = $("prompt-source").value;
-          if (source && (kind === "mcp" || kind === "rest")) params.set("source", source);
+          const source = sourceOverride !== undefined ? sourceOverride : $("prompt-source").value;
+          if (source && (kind === "mcp" || kind === "rest" || kind === "service")) params.set("source", source);
           if (kind === "add-mcp") {
             params.set("name", $("hint-mcp-name").value.trim());
             params.set("command", $("hint-mcp-target").value.trim());
@@ -2697,6 +2704,63 @@
           return data.text || "";
         }
 
+        function fetchPrompt(kind) {
+          return fetchPromptFor(kind);
+        }
+
+        /** 为每个来源生成一份独立提示词（只含该服务的工具与单来源端点）。 */
+        async function loadServicePrompts() {
+          const box = $("prompt-services");
+          if (!box) return;
+          box.innerHTML = "";
+          const selected = $("prompt-source").value;
+          const sources = selected ? state.sources.filter((s) => s.name === selected) : state.sources;
+          if (!sources.length) {
+            box.innerHTML = '<div class="empty">还没有来源，先去「来源」接入一个。</div>';
+            return;
+          }
+          for (const source of sources) {
+            const card = document.createElement("div");
+            card.className = "card prompt-card";
+            const head = document.createElement("div");
+            head.className = "head";
+            const h2 = document.createElement("h2");
+            h2.textContent = `服务：${source.name}（${source.toolCount ?? 0} 个工具）`;
+            const copy = document.createElement("button");
+            copy.className = "primary";
+            copy.textContent = "复制";
+            let text = "";
+            copy.addEventListener("click", async () => {
+              copy.disabled = true;
+              try {
+                if (!text) text = await fetchPromptFor("service", source.name);
+                await copyText(text, `${source.name} 的接入提示词`);
+              } catch (error) {
+                toast(`生成失败：${error.message}`, "err");
+              } finally {
+                copy.disabled = false;
+              }
+            });
+            head.appendChild(h2);
+            head.appendChild(copy);
+            card.appendChild(head);
+            const hint = document.createElement("div");
+            hint.className = "hint";
+            hint.textContent = "只含该服务的工具与单来源端点，给 AI 可限定其访问范围。";
+            card.appendChild(hint);
+            const pre = document.createElement("pre");
+            pre.textContent = "生成中…";
+            card.appendChild(pre);
+            box.appendChild(card);
+            try {
+              text = await fetchPromptFor("service", source.name);
+              pre.textContent = text;
+            } catch (error) {
+              pre.textContent = `生成失败：${error.message}`;
+            }
+          }
+        }
+
         async function loadPrompts() {
           for (const kind of ["mcp", "rest", "add-mcp", "add-api"]) {
             const box = $(`prompt-${kind}`);
@@ -2706,6 +2770,7 @@
               box.textContent = `生成失败：${error.message}\n（如果是 401，请先在上方保存管理员 Token）`;
             }
           }
+          await loadServicePrompts();
         }
 
         document.querySelectorAll("[data-copy]").forEach((button) => {
@@ -2725,6 +2790,7 @@
         });
 
         $("prompt-refresh").addEventListener("click", loadPrompts);
+        $("prompt-source").addEventListener("change", () => loadPrompts());
         ["hint-mcp-name", "hint-mcp-target", "hint-mcp-note", "hint-api-name", "hint-api-spec", "hint-api-note"].forEach((id) => {
           $(id).addEventListener("change", () => loadPrompts());
         });
