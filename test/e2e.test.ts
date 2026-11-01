@@ -252,6 +252,8 @@ test("per-source MCP endpoints are isolated", async () => {
     assert.ok(names.every((name) => name.startsWith("echo__")));
     const echoed = await client.callTool({ name: "echo__echo", arguments: { text: "scoped" } });
     assert.equal((echoed.content as any[])[0].text, "echo:scoped");
+    // tools/call is scoped too: a foreign tool is rejected even when called by name.
+    await assert.rejects(client.callTool({ name: "petstore__listPets", arguments: {} }), /Unknown tool/);
   } finally {
     await client.close();
   }

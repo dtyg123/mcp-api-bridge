@@ -131,7 +131,7 @@ export function buildPrompt(kind: PromptKind, ctx: PromptContext): string {
     const name = ctx.source || "全部来源";
     lines.push(
       "# 任务",
-      `请通过「MCP ⇄ API 网关」使用**独立服务 ${name}**。你只能调用下面列出的工具，不要访问其它服务。`,
+      `请通过「MCP ⇄ API 网关」使用**独立服务 ${name}**。该端点只注册了下面这些工具（服务端限制）：调用其它来源的工具会被拒绝（Unknown tool）。`,
       "",
       "# 连接信息（单来源）",
       `- MCP 端点：\`${ctx.baseUrl}${ctx.mcpPath}${ctx.source ? `/${ctx.source}` : ""}\``,
