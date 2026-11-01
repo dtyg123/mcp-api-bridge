@@ -225,43 +225,92 @@
       .kv-row input { padding: 6px 9px; font-size: 12.5px; }
       .linkbtn { background: none; border: none; color: var(--accent); padding: 0; font-size: 12.5px; }
       .linkbtn:hover { text-decoration: underline; }
-      /* ---- 认证信息 ---- */
-      .vault-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr); gap: 16px; align-items: start; }
-      .vault-form { position: sticky; top: 16px; }
-      .cred-used { display: flex; gap: 4px; flex-wrap: wrap; }
+      /* ---- Scratch-like block editor ---- */
+      .cat-data { --cat: #4C97FF; }
+      .cat-gen { --cat: #59C059; }
+      .cat-time { --cat: #FFAB19; }
+      .cat-calc { --cat: #CF63CF; }
+      .cat-loop { --cat: #2CA5A5; }
+      .cat-filter { --cat: #CF4D4D; }
 
-      /* ---- 数据编排 ---- */
-      .orchestrate { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
-      .orchestrate-side { position: sticky; top: 16px; }
-      .block {
-        border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px 4px;
-        margin-bottom: 8px; background: var(--bg-soft);
+      /* ===== 编排：左右字段映射 ===== */
+      .tf-banner {
+        background: rgba(109, 140, 255, 0.12); border: 1px solid var(--accent);
+        border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.5;
       }
-      .block-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-      .block-head .op { font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid rgba(109,140,255,0.32); border-radius: 999px; padding: 1px 8px; }
-      .block-head .grow { flex: 1; }
-      .block-actions { display: flex; gap: 5px; }
-      .block-actions button { padding: 2px 7px; font-size: 11.5px; }
-      .block-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 10px; }
-      .block-fields .wide { grid-column: 1 / -1; }
-      .block-fields label.field { margin-bottom: 8px; }
-      .block-fields label.field > span { font-size: 11.5px; }
-      .block-fields input, .block-fields select, .block-fields textarea { padding: 6px 9px; font-size: 12.5px; }
-      .block-fields textarea { min-height: 54px; }
-      .blocks-empty { color: var(--muted); font-size: 12.5px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; margin-bottom: 8px; text-align: center; }
-      .sub-blocks { margin: 2px 0 8px; padding-left: 10px; border-left: 2px solid var(--border); }
-      .sub-blocks .sub-title { font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
-      .sub-add { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-      .sub-add select { width: auto; padding: 4px 8px; font-size: 12px; }
-      .sub-add button { padding: 4px 9px; font-size: 12px; }
-      .transform-list-item .n { display: flex; gap: 6px; align-items: center; }
+      .tf-topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
+      .tf-selectors { display: flex; gap: 12px; flex-wrap: wrap; }
+      .tf-selectors .field { margin: 0; min-width: 200px; }
+      .tf-topactions { display: flex; gap: 8px; align-items: center; }
+
+      .tf-mapping { display: grid; grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+      .tf-col { display: flex; flex-direction: column; gap: 10px; }
+      .tf-col > h2 { font-size: 14px; margin: 0; display: flex; align-items: baseline; gap: 8px; }
+      .tf-col .hint { font-size: 11.5px; color: var(--muted); font-weight: 400; }
+
+      .tf-addcustom { display: flex; gap: 6px; }
+      .tf-addcustom input { flex: 1; }
+
+      .tf-available { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 48vh; padding-right: 2px; }
+      .tf-field {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--bg-soft);
+        border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 13px;
+      }
+      .tf-field .tf-path { font-family: var(--mono); font-size: 12px; color: var(--text); word-break: break-all; flex: 1; min-width: 80px; }
+      .tf-field .tf-type { font-size: 10.5px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; flex-shrink: 0; }
+      .tf-field .tf-add { flex-shrink: 0; }
+      .tf-field .tf-sample { font-size: 11px; color: var(--muted); width: 100%; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tf-field.array { border-left: 3px solid var(--accent-2); }
+
+      .tf-arrow { display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 22px; font-weight: 700; }
+
+      .tf-output { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 48vh; padding-right: 2px; }
+      .tf-row {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--bg-soft);
+        border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+      }
+      .tf-row.kind-field { border-left: 3px solid var(--accent); }
+      .tf-row.kind-now { border-left: 3px solid #e0a528; }
+      .tf-row.kind-constant { border-left: 3px solid #6b9cff; }
+      .tf-row.kind-text { border-left: 3px solid #b06bd6; }
+      .tf-row.kind-other { border-left: 3px solid var(--muted); }
+      .tf-row .tf-from { font-family: var(--mono); font-size: 12px; color: var(--muted); flex: 0 0 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tf-row .tf-then { color: var(--muted); flex-shrink: 0; }
+      .tf-row .tf-as { flex: 1; min-width: 70px; font-weight: 600; background: var(--bg); }
+      .tf-row .tf-as::placeholder { font-weight: 400; color: var(--muted); }
+      .tf-row input, .tf-row select { background: var(--bg); }
+      .tf-row .tf-del { flex-shrink: 0; margin-left: 2px; padding: 3px 9px; }
+      .tf-row .tf-other-json { width: 100%; font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: pre-wrap; word-break: break-all; }
+
+      .tf-output-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+      .tf-options { margin-top: 4px; }
+      .tf-options .field { margin: 0 0 8px; }
+
+      .tf-footer { margin-top: 14px; }
+      .tf-footer-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+      .tf-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+      .tf-preview .field { margin: 0; }
+      .tf-preview textarea { min-height: 150px; }
+
       @media (max-width: 980px) {
-        .vault-grid { grid-template-columns: 1fr; }
-        .vault-form { position: static; }
+        .tf-mapping { grid-template-columns: 1fr; }
+        .tf-arrow { transform: rotate(90deg); }
+        .tf-preview { grid-template-columns: 1fr; }
       }
-      @media (max-width: 900px) {
-        .orchestrate { grid-template-columns: 1fr; }
-        .orchestrate-side { position: static; }
+
+      .scratch-cred-section summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+      .scratch-cred-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+      .scratch-cred-badge {
+        display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+        padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border);
+        color: var(--muted); background: var(--bg-soft); cursor: default;
+      }
+      .scratch-cred-badge .cred-del { cursor: pointer; color: var(--err); margin-left: 2px; }
+
+      .transform-list-item .n { display: flex; gap: 6px; align-items: center; }
+
+      @media (max-width: 1100px) {
+        .tf-selectors .field { min-width: 160px; }
       }
       @media (max-width: 720px) {
         header { flex-wrap: wrap; }
@@ -289,8 +338,7 @@
       <button data-tab="overview" class="active">概览</button>
       <button data-tab="try">接口测试</button>
       <button data-tab="add">添加来源</button>
-      <button data-tab="credentials">认证信息</button>
-      <button data-tab="transform">数据编排</button>
+      <button data-tab="transform">编排</button>
       <button data-tab="prompt">接入提示词</button>
       <button data-tab="import">JSON 导入</button>
     </nav>
@@ -317,11 +365,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>来源</th><th>操作</th>
+                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>来源</th><th>编排</th><th>操作</th>
                 </tr>
               </thead>
               <tbody id="source-rows">
-                <tr><td colspan="6" class="empty">加载中…</td></tr>
+                <tr><td colspan="7" class="empty">加载中…</td></tr>
               </tbody>
             </table>
           </div>
@@ -346,124 +394,109 @@
         </div>
       </section>
 
-      <!-- ================= 认证信息 ================= -->
-      <section id="tab-credentials" hidden>
-        <div class="vault-grid">
-          <div class="card">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
-              <div style="flex: 1">
-                <h2>认证信息</h2>
-                <div class="hint" style="margin: 0">可复用的密钥 / 请求头。来源按名称引用，轮换密钥时只改这里。</div>
-              </div>
-              <button id="credential-refresh" class="ghost">刷新</button>
-            </div>
-            <div style="overflow-x: auto">
-              <table>
-                <thead>
-                  <tr>
-                    <th>名称</th><th>类型</th><th>请求头</th><th>值</th><th>被引用</th><th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="credential-rows">
-                  <tr><td colspan="6" class="empty">加载中…</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="hint" id="credential-file" style="margin: 10px 0 0"></div>
-          </div>
+      <!-- ================= 编排 ================= -->
+      <section id="tab-transform" hidden>
+        <div class="tf-banner">
+          🧭 <b>编排是接入 MCP 前的必要步骤。</b> 选择接口 → 探测字段 → 在右侧编排输出（或一键「快速编排」）→ 保存。所有新增的 API 都需要先完成编排，再对外提供 MCP 工具。
+        </div>
 
-          <div class="card vault-form">
-            <h2 id="credential-form-title">新增认证信息</h2>
-            <div class="hint">值只保存在服务器本地，列表里始终显示掩码。</div>
-            <label class="field"><span>名称 <em>*</em>（用于来源引用，字母/数字/._-）</span><input id="cred-name" type="text" placeholder="rainyun" /></label>
-            <label class="field">
-              <span>类型</span>
-              <select id="cred-type">
-                <option value="header">自定义请求头（如 X-Api-Key）</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="basic">Basic 认证</option>
-              </select>
-            </label>
-            <label class="field" id="cred-key-wrap"><span>请求头名称 <em>*</em></span><input id="cred-key" type="text" placeholder="X-Api-Key" /></label>
-            <label class="field" id="cred-value-wrap">
-              <span>值 <em>*</em> <em id="cred-value-hint" style="color: var(--muted)"></em></span>
-              <input id="cred-value" type="password" placeholder="密钥 / token" autocomplete="new-password" />
-            </label>
-            <div id="cred-basic-wrap" hidden>
-              <label class="field"><span>用户名 <em>*</em></span><input id="cred-username" type="text" placeholder="user" autocomplete="off" /></label>
-              <label class="field"><span>密码</span><input id="cred-password" type="password" placeholder="password" autocomplete="new-password" /></label>
-            </div>
-            <label class="field"><span>备注</span><input id="cred-note" type="text" placeholder="用途说明（可选）" /></label>
-            <div class="form-actions">
-              <button class="primary" id="cred-save">保存</button>
-              <button class="ghost" id="cred-clear">清空</button>
-              <span class="sub" id="cred-mode"></span>
-            </div>
-            <div class="result" id="cred-result"></div>
+        <div class="tf-topbar card">
+          <div class="tf-selectors">
+            <label class="field"><span>来源</span><select id="transform-source"></select></label>
+            <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（全部接口默认规则）</option></select></label>
+          </div>
+          <div class="tf-topactions">
+            <button id="transform-probe" class="ghost">🔍 探测字段</button>
+            <button id="transform-quick" class="primary">🚀 快速编排</button>
+            <span class="badge" id="transform-state">未保存</span>
           </div>
         </div>
-      </section>
 
-      <!-- ================= 数据编排 ================= -->
-      <section id="tab-transform" hidden>
-        <div class="orchestrate">
-          <aside class="card orchestrate-side">
-            <h2>数据编排</h2>
-            <div class="hint" style="margin: -4px 0 12px">在响应到达调用方之前重新组装：挑字段、改名、补充当前时间 / 固定文本。</div>
-            <label class="field"><span>来源</span><select id="transform-source"></select></label>
-            <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（该来源全部接口的默认规则）</option></select></label>
-            <div class="form-actions" style="margin-top: 0">
-              <button id="transform-load" class="primary">打开</button>
-              <button id="transform-new" class="ghost">新建</button>
+        <div class="tf-mapping">
+          <!-- 左：可用字段 -->
+          <div class="tf-col tf-left card">
+            <h2>可用字段 <span class="hint">来自上游响应 / 手动添加</span></h2>
+            <div class="tf-addcustom">
+              <input id="tf-custom-path" type="text" placeholder="手动添加字段路径，如 data.id" />
+              <button id="tf-custom-add" class="ghost">＋ 添加</button>
             </div>
-            <div class="divider"></div>
-            <div class="hint" style="margin-bottom: 6px">已保存的编排</div>
-            <div class="try-list" id="transform-saved" style="max-height: 30vh"><div class="empty">加载中…</div></div>
-          </aside>
-
-          <div class="card">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px">
-              <div style="flex: 1">
-                <h2 id="transform-title">选择来源和接口</h2>
-                <div class="hint" style="margin: 0">积木按顺序执行；没被积木选中的字段默认丢弃（除非开启「保留原字段」）。</div>
+            <div id="tf-available" class="tf-available">
+              <div class="empty">点「探测字段」获取上游字段，或在上方手动添加。</div>
+            </div>
+            <details class="card scratch-cred-section">
+              <summary>🔑 认证信息</summary>
+              <div class="scratch-cred-list" id="scratch-cred-list"></div>
+              <div id="scratch-cred-form" hidden style="margin-top:8px">
+                <label class="field"><span>名称</span><input id="scred-name" type="text" placeholder="mykey" /></label>
+                <label class="field"><span>类型</span>
+                  <select id="scred-type">
+                    <option value="header">请求头</option>
+                    <option value="bearer">Bearer</option>
+                    <option value="basic">Basic</option>
+                  </select>
+                </label>
+                <label class="field" id="scred-key-wrap"><span>请求头名</span><input id="scred-key" type="text" placeholder="X-Api-Key" /></label>
+                <label class="field"><span>值</span><input id="scred-value" type="password" placeholder="密钥/token" /></label>
+                <div id="scred-basic-wrap" hidden>
+                  <label class="field"><span>用户名</span><input id="scred-username" type="text" /></label>
+                  <label class="field"><span>密码</span><input id="scred-password" type="password" /></label>
+                </div>
+                <div class="form-actions" style="margin-top:4px">
+                  <button class="primary" id="scred-save">保存</button>
+                  <button class="ghost" id="scred-cancel">取消</button>
+                </div>
               </div>
-              <span class="badge" id="transform-state">未保存</span>
-            </div>
+              <div class="form-actions" style="margin-top:8px">
+                <button id="scratch-cred-add" class="ghost">添加</button>
+                <button id="scratch-cred-refresh" class="ghost">刷新</button>
+              </div>
+            </details>
+          </div>
 
-            <div class="two-col">
-              <label class="field"><span>数据根路径（留空 = 整个响应 <code>data</code>）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
-              <label class="field" style="padding-top: 4px">
-                <span>&nbsp;</span>
-                <span class="checkline" style="margin: 0"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
-              </label>
-            </div>
+          <div class="tf-arrow">→</div>
 
-            <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap">
-              <span class="sub" style="flex: 1">积木（从上到下依次执行）</span>
-              <select id="transform-add-op" style="width: auto"></select>
-              <button id="transform-add">+ 添加积木</button>
+          <!-- 右：编排输出 -->
+          <div class="tf-col tf-right card">
+            <h2>编排输出 <span class="hint">可自定义输出名（明亮）</span></h2>
+            <div id="tf-output" class="tf-output">
+              <div class="empty">从左侧添加字段，或点「快速编排」一键照搬。</div>
             </div>
-            <div id="transform-blocks"></div>
+            <div class="tf-output-actions">
+              <button id="tf-add-now" class="ghost">＋ 计算字段（时间）</button>
+              <button id="tf-add-constant" class="ghost">＋ 固定值</button>
+              <button id="tf-add-text" class="ghost">＋ 模板文本</button>
+            </div>
+            <div class="tf-options">
+              <label class="field"><span>数据根路径（留空 = 整个响应）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
+              <span class="checkline"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
+            </div>
+          </div>
+        </div>
 
-            <div class="divider"></div>
-            <div class="two-col">
+        <div class="tf-footer card">
+          <div class="tf-footer-actions">
+            <button class="primary" id="transform-save">保存编排</button>
+            <button class="danger" id="transform-delete">删除编排</button>
+            <span class="sub" id="transform-status"></span>
+          </div>
+          <div class="result" id="transform-result"></div>
+          <div class="tf-preview">
+            <div class="tf-preview-pane">
               <label class="field">
-                <span>示例响应（仅用于预览，不会发给上游）</span>
-                <textarea id="transform-sample" style="min-height: 130px">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
+                <span>示例响应</span>
+                <textarea id="transform-sample">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
               </label>
+              <div class="form-actions">
+                <button id="transform-grab">抓真实响应</button>
+                <button id="transform-preview-btn">预览</button>
+              </div>
+            </div>
+            <div class="tf-preview-pane">
               <label class="field">
                 <span>预览结果</span>
-                <textarea id="transform-preview" readonly style="min-height: 130px"></textarea>
+                <textarea id="transform-preview" readonly></textarea>
               </label>
             </div>
-            <div class="form-actions" style="margin-top: 0">
-              <button class="primary" id="transform-save">保存编排</button>
-              <button id="transform-preview-btn">预览</button>
-              <button id="transform-grab">抓一份真实响应</button>
-              <button class="danger" id="transform-delete">删除编排</button>
-              <span class="sub" id="transform-status"></span>
-            </div>
-            <div class="result" id="transform-result"></div>
           </div>
         </div>
       </section>
@@ -823,7 +856,6 @@
             if (button.dataset.tab === "prompt") loadPrompts();
             if (button.dataset.tab === "overview") loadOverview();
             if (button.dataset.tab === "try") initTester();
-            if (button.dataset.tab === "credentials") loadCredentials();
             if (button.dataset.tab === "transform") initTransforms();
           });
         });
@@ -842,7 +874,7 @@
           if (!sources.length) {
             const row = document.createElement("tr");
             const cell = document.createElement("td");
-            cell.colSpan = 6;
+            cell.colSpan = 7;
             cell.className = "empty";
             cell.textContent = "还没有来源。去「添加来源」接入第一个 MCP Server 或 OpenAPI 服务吧。";
             row.appendChild(cell);
@@ -882,6 +914,13 @@
               originCell.title = source.error;
             }
             row.appendChild(originCell);
+
+            const orchestrated = isOrchestrated(source.name);
+            const orchCell = document.createElement("td");
+            orchCell.appendChild(
+              badge(orchestrated ? "已编排" : "未编排", orchestrated ? "ok" : "err"),
+            );
+            row.appendChild(orchCell);
 
             const actionsCell = document.createElement("td");
             const actions = document.createElement("div");
@@ -1537,11 +1576,12 @@
             $("stat-uptime").innerHTML = seconds < 60 ? `${seconds}<small> 秒</small>` : `${h > 0 ? `${h}<small> 时 </small>` : ""}${m}<small> 分</small>`;
             $("stat-version").textContent = data.version || BOOT.version;
             $("base-chip").textContent = BOOT.baseUrl || location.origin;
+            await refreshTransformSaved();
             renderSources(state.sources);
             fillSourceSelect(state.sources);
             fillTrySources(state.sources);
           } catch (error) {
-            $("source-rows").innerHTML = '<tr><td colspan="6" class="empty">无法加载来源列表</td></tr>';
+            $("source-rows").innerHTML = '<tr><td colspan="7" class="empty">无法加载来源列表</td></tr>';
             setResult("source-error", false, error.message || "加载失败", [
               error.status === 401 ? "请在上方输入管理员 Token 后点「保存 Token」。" : "请检查服务是否正常运行。",
             ]);
@@ -1746,6 +1786,8 @@
             updateModeLabels();
             $("mcp-save").textContent = "保存并上线";
             await loadOverview();
+            toast(`「${result.name}」已上线，现在去「编排」完成字段映射后再对外提供 MCP 工具。`, "ok");
+            openTransform(result.name);
           } catch (error) {
             setResult("mcp-result", false, error.message || "保存失败", []);
           } finally {
@@ -1931,6 +1973,8 @@
             updateModeLabels();
             $("api-save").textContent = "保存并上线";
             await loadOverview();
+            toast(`「${result.name}」已上线，现在去「编排」完成字段映射后再对外提供 MCP 工具。`, "ok");
+            openTransform(result.name);
           } catch (error) {
             setResult("api-result", false, error.message || "保存失败", []);
           } finally {
@@ -1938,21 +1982,8 @@
           }
         });
 
-        // ---------------- 认证信息 (credential vault) ----------------
+        // ---------------- 认证信息 (compact inline) ----------------
         const credState = { editing: "", credentials: [] };
-
-        function syncCredentialForm() {
-          const type = $("cred-type").value;
-          $("cred-key-wrap").hidden = type !== "header";
-          $("cred-value-wrap").hidden = type === "basic";
-          $("cred-basic-wrap").hidden = type !== "basic";
-          $("cred-value").placeholder =
-            type === "bearer" ? "Bearer token" : type === "header" ? "密钥 / token 值" : "";
-          $("cred-value-hint").textContent =
-            credState.editing && type !== "basic" ? "（已保存，留空则不修改）" : "";
-          $("cred-mode").textContent = credState.editing ? `正在编辑：${credState.editing}` : "";
-          $("credential-form-title").textContent = credState.editing ? "编辑认证信息" : "新增认证信息";
-        }
 
         function credentialTypeBadge(type) {
           return badge(
@@ -1961,130 +1992,100 @@
           );
         }
 
-        function renderCredentials() {
-          const tbody = $("credential-rows");
-          tbody.innerHTML = "";
+        function renderScratchCredentials() {
+          const box = $("scratch-cred-list");
+          if (!box) return;
+          box.innerHTML = "";
           if (!credState.credentials.length) {
-            const row = document.createElement("tr");
-            const cell = document.createElement("td");
-            cell.colSpan = 6;
-            cell.className = "empty";
-            cell.textContent = "还没有认证信息。在右侧添加一个，来源就可以按名称引用它。";
-            row.appendChild(cell);
-            tbody.appendChild(row);
+            const span = document.createElement("span");
+            span.className = "sub";
+            span.textContent = "还没有认证信息";
+            box.appendChild(span);
             return;
           }
-          for (const credential of credState.credentials) {
-            const row = document.createElement("tr");
-
-            const nameCell = document.createElement("td");
-            nameCell.className = "name-cell";
-            nameCell.textContent = credential.name;
-            row.appendChild(nameCell);
-
-            const typeCell = document.createElement("td");
-            typeCell.appendChild(credentialTypeBadge(credential.type));
-            row.appendChild(typeCell);
-
-            const keyCell = document.createElement("td");
-            keyCell.className = "mono";
-            keyCell.textContent = credential.type === "header" ? credential.key : "Authorization";
-            row.appendChild(keyCell);
-
-            const valueCell = document.createElement("td");
-            valueCell.className = "mono";
-            valueCell.textContent =
-              credential.type === "basic"
-                ? `${credential.username || "—"} / ${credential.password || "••••"}`
-                : credential.value || "—";
-            row.appendChild(valueCell);
-
-            const usedCell = document.createElement("td");
-            const used = document.createElement("div");
-            used.className = "cred-used";
-            if ((credential.usedBy || []).length) {
-              for (const name of credential.usedBy) used.appendChild(badge(name, "mcp"));
-            } else {
-              used.textContent = "—";
-              used.className = "sub";
-            }
-            usedCell.appendChild(used);
-            if (credential.note) usedCell.title = credential.note;
-            row.appendChild(usedCell);
-
-            const actionsCell = document.createElement("td");
-            const actions = document.createElement("div");
-            actions.className = "row-actions";
-            const editButton = document.createElement("button");
-            editButton.textContent = "编辑";
-            editButton.addEventListener("click", () => editCredential(credential));
-            actions.appendChild(editButton);
-            const deleteButton = document.createElement("button");
-            deleteButton.className = "danger";
-            deleteButton.textContent = "删除";
-            deleteButton.addEventListener("click", () => deleteCredential(credential));
-            actions.appendChild(deleteButton);
-            actionsCell.appendChild(actions);
-            row.appendChild(actionsCell);
-
-            tbody.appendChild(row);
+          for (const cred of credState.credentials) {
+            const b = document.createElement("span");
+            b.className = "scratch-cred-badge";
+            const detail = cred.type === "header" ? cred.key : cred.type === "bearer" ? "Bearer" : "Basic";
+            b.textContent = `${cred.name}（${detail}）`;
+            if (cred.note) b.title = cred.note;
+            const del = document.createElement("span");
+            del.className = "cred-del";
+            del.textContent = "✕";
+            del.addEventListener("click", () => deleteCredential(cred));
+            b.appendChild(del);
+            box.appendChild(b);
           }
-        }
-
-        function editCredential(credential) {
-          credState.editing = credential.name;
-          $("cred-name").value = credential.name;
-          $("cred-name").readOnly = true;
-          $("cred-type").value = credential.type;
-          $("cred-key").value = credential.key || "";
-          $("cred-value").value = "";
-          $("cred-username").value = credential.username || "";
-          $("cred-password").value = "";
-          $("cred-note").value = credential.note || "";
-          syncCredentialForm();
-        }
-
-        function clearCredentialForm() {
-          credState.editing = "";
-          $("cred-name").value = "";
-          $("cred-name").readOnly = false;
-          $("cred-type").value = "header";
-          $("cred-key").value = "";
-          $("cred-value").value = "";
-          $("cred-username").value = "";
-          $("cred-password").value = "";
-          $("cred-note").value = "";
-          clearResult("cred-result");
-          syncCredentialForm();
         }
 
         async function loadCredentials() {
           try {
             const data = await api("/credentials");
             credState.credentials = data.credentials || [];
-            $("credential-file").textContent = data.file ? `存储位置：${data.file}` : "";
-            renderCredentials();
+            renderScratchCredentials();
             renderApiCredentialChoices();
-            if (credState.editing && !credState.credentials.some((item) => item.name === credState.editing)) {
-              clearCredentialForm();
-            }
           } catch (error) {
-            $("credential-rows").innerHTML = `<tr><td colspan="6" class="empty">无法加载认证信息：${escapeHtml(error.message)}</td></tr>`;
+            const box = $("scratch-cred-list");
+            if (box) box.innerHTML = `<span class="sub">加载失败：${escapeHtml(error.message)}</span>`;
           }
         }
 
-        async function deleteCredential(credential) {
-          if (!confirm(`确定删除认证信息「${credential.name}」？引用它的来源会失去该凭证。`)) return;
+        async function deleteCredential(cred) {
+          if (!confirm(`确定删除认证信息「${cred.name}」？`)) return;
           try {
-            const result = await api(`/credentials/${encodeURIComponent(credential.name)}`, { method: "DELETE" });
-            const usedBy = result.usedBy || [];
-            toast(`已删除「${credential.name}」${usedBy.length ? `，仍被 ${usedBy.join("、")} 引用` : ""}`, usedBy.length ? "" : "ok");
-            if (credState.editing === credential.name) clearCredentialForm();
+            await api(`/credentials/${encodeURIComponent(cred.name)}`, { method: "DELETE" });
+            toast(`已删除「${cred.name}」`, "ok");
             await loadCredentials();
           } catch (error) {
             toast(`删除失败：${error.message}`, "err");
           }
         }
+
+        function showScratchCredForm() {
+          $("scratch-cred-form").hidden = false;
+          $("scred-name").value = "";
+          $("scred-type").value = "header";
+          $("scred-key").value = "";
+          $("scred-value").value = "";
+          $("scred-username").value = "";
+          $("scred-password").value = "";
+          $("scred-key-wrap").hidden = false;
+          $("scred-basic-wrap").hidden = true;
+          credState.editing = "";
+        }
+
+        $("scratch-cred-add")?.addEventListener("click", showScratchCredForm);
+        $("scratch-cred-refresh")?.addEventListener("click", loadCredentials);
+        $("scred-cancel")?.addEventListener("click", () => { $("scratch-cred-form").hidden = true; });
+        $("scred-type")?.addEventListener("change", () => {
+          const type = $("scred-type").value;
+          $("scred-key-wrap").hidden = type !== "header";
+          $("scred-basic-wrap").hidden = type !== "basic";
+        });
+        $("scred-save")?.addEventListener("click", async () => {
+          const btn = $("scred-save");
+          btn.disabled = true;
+          try {
+            const type = $("scred-type").value;
+            const payload = {
+              name: $("scred-name").value.trim(),
+              type,
+              key: $("scred-key").value.trim(),
+              value: $("scred-value").value,
+              username: $("scred-username").value.trim(),
+            };
+            const pw = $("scred-password").value;
+            if (type === "basic" && pw) payload.password = pw;
+            await api("/credentials", { method: "POST", body: JSON.stringify({ credential: payload }) });
+            toast(`已保存「${payload.name}」`, "ok");
+            $("scratch-cred-form").hidden = true;
+            await loadCredentials();
+          } catch (error) {
+            toast(`保存失败：${error.message}`, "err");
+          } finally {
+            btn.disabled = false;
+          }
+        });
 
         function renderApiCredentialChoices(selected) {
           const box = $("api-credential-refs");
@@ -2094,7 +2095,7 @@
           if (!credState.credentials.length) {
             const span = document.createElement("span");
             span.className = "sub";
-            span.textContent = "还没有认证信息，可到「认证信息」页添加后再回来引用。";
+            span.textContent = "还没有认证信息，可在「编排」页添加后再引用。";
             box.appendChild(span);
             return;
           }
@@ -2111,342 +2112,245 @@
           }
         }
 
-        $("cred-type").addEventListener("change", syncCredentialForm);
-        $("credential-refresh").addEventListener("click", loadCredentials);
-        $("cred-clear").addEventListener("click", clearCredentialForm);
-        $("cred-save").addEventListener("click", async () => {
-          const button = $("cred-save");
-          button.disabled = true;
-          button.textContent = "保存中…";
-          try {
-            const type = $("cred-type").value;
-            const payload = {
-              name: $("cred-name").value.trim(),
-              type,
-              key: $("cred-key").value.trim(),
-              value: $("cred-value").value,
-              username: $("cred-username").value.trim(),
-              note: $("cred-note").value.trim(),
-            };
-            const password = $("cred-password").value;
-            if (type === "basic" && password) payload.password = password;
-            await api("/credentials", { method: "POST", body: JSON.stringify({ credential: payload }) });
-            toast(`已保存认证信息「${payload.name}」`, "ok");
-            clearCredentialForm();
-            await loadCredentials();
-          } catch (error) {
-            setResult("cred-result", false, `保存失败：${error.message}`, []);
-          } finally {
-            button.disabled = false;
-            button.textContent = "保存";
-          }
-        });
-
-        // ---------------- 数据编排 (response transforms) ----------------
-        const OP_LABELS = {
-          field: "取字段",
-          text: "模板文本",
-          constant: "固定值",
-          now: "当前时间",
-          count: "计数",
-          join: "拼接数组",
-          omit: "排除字段",
-          each: "逐项编排",
-        };
-
+        // ---------------- 数据编排：左右字段映射 ----------------
         const NOW_FORMAT_OPTIONS = [
-          ["iso", "ISO 时间（2026-01-01T00:00:00.000Z）"],
-          ["date", "日期（2026-01-01）"],
-          ["time", "时间（00:00:00，UTC）"],
-          ["timestamp", "毫秒时间戳"],
-          ["locale", "本地时间（中文本地化）"],
+          ["iso", "ISO"],
+          ["date", "日期"],
+          ["time", "时间"],
+          ["timestamp", "时间戳"],
+          ["locale", "本地"],
         ];
 
-        const OP_FIELDS = {
-          field: [
-            { key: "from", label: "取值路径", placeholder: "items 或 data.owner.name" },
-            { key: "as", label: "输出字段名（留空 = 同名）", placeholder: "pets" },
-          ],
-          text: [
-            { key: "as", label: "输出字段名", placeholder: "headline" },
-            { key: "template", label: "模板（{{路径}} 会被替换）", type: "textarea", wide: true, placeholder: "共 {{items}} 条，更新于 {{updatedAt}}" },
-          ],
-          constant: [
-            { key: "as", label: "输出字段名", placeholder: "source" },
-            { key: "value", label: "固定值（JSON 或纯文本）", type: "textarea", wide: true, placeholder: '"hello" / 123 / {"cached": false}' },
-          ],
-          now: [
-            { key: "as", label: "输出字段名", placeholder: "generatedAt" },
-            { key: "format", label: "格式", type: "select", options: NOW_FORMAT_OPTIONS },
-            { key: "offsetSeconds", label: "偏移秒数（可选）", type: "number", placeholder: "0" },
-          ],
-          count: [
-            { key: "from", label: "数组 / 对象路径（留空 = 当前根）", placeholder: "items" },
-            { key: "as", label: "输出字段名", placeholder: "count" },
-          ],
-          join: [
-            { key: "from", label: "数组路径（留空 = 当前根）", placeholder: "items" },
-            { key: "as", label: "输出字段名", placeholder: "names" },
-            { key: "separator", label: "分隔符", placeholder: ", " },
-          ],
-          omit: [
-            { key: "from", label: "要排除的字段名", placeholder: "password" },
-          ],
-          each: [
-            { key: "from", label: "数组路径（留空 = 当前根）", placeholder: "items" },
-            { key: "as", label: "输出字段名", placeholder: "rows" },
-          ],
+        const TF_KIND_LABELS = { field: "字段", now: "时间", constant: "固定值", text: "文本", other: "其他" };
+
+        const tfState = {
+          source: "",
+          tool: "*",
+          tools: [],
+          saved: [],
+          /** 可用字段（探测得到 + 手动添加），渲染在左侧。 */
+          available: [],
+          pending: null,
+          initialized: false,
         };
 
-        const tfState = { source: "", tool: "*", tools: [], saved: [], pending: null, initialized: false };
-
-        function blockDefaults(op) {
-          switch (op) {
-            case "field": return { op, from: "", as: "" };
-            case "text": return { op, as: "", template: "" };
-            case "constant": return { op, as: "", value: "" };
-            case "now": return { op, as: "", format: "iso" };
-            case "count": return { op, from: "", as: "" };
-            case "join": return { op, from: "", as: "", separator: ", " };
-            case "omit": return { op, from: "" };
-            case "each": return { op, from: "", as: "", blocks: [] };
-            default: return { op: "field", from: "" };
-          }
-        }
-
-        function opSelect() {
-          const select = document.createElement("select");
-          for (const [op, label] of Object.entries(OP_LABELS)) {
-            const option = document.createElement("option");
-            option.value = op;
-            option.textContent = label;
-            select.appendChild(option);
-          }
-          return select;
-        }
-
-        function blockField(def, value) {
-          const label = document.createElement("label");
-          label.className = def.wide ? "field wide" : "field";
-          const caption = document.createElement("span");
-          caption.textContent = def.label;
-          label.appendChild(caption);
-
-          let input;
-          if (def.type === "textarea") {
-            input = document.createElement("textarea");
-            input.rows = 2;
-          } else if (def.type === "select") {
-            input = document.createElement("select");
-            for (const [optionValue, optionLabel] of def.options) {
-              const option = document.createElement("option");
-              option.value = optionValue;
-              option.textContent = optionLabel;
-              input.appendChild(option);
-            }
-          } else {
-            input = document.createElement("input");
-            input.type = def.type === "number" ? "number" : "text";
-            if (def.placeholder) input.placeholder = def.placeholder;
-          }
-          input.dataset.key = def.key;
-          if (value !== undefined && value !== null) {
-            input.value = def.key === "value" && typeof value !== "string" ? JSON.stringify(value) : String(value);
-          }
-          label.appendChild(input);
-          return label;
-        }
-
-        function buildBlockElement(block) {
-          const element = document.createElement("div");
-          element.className = "block";
-          element.dataset.op = block.op;
-
-          const head = document.createElement("div");
-          head.className = "block-head";
-          const opBadge = document.createElement("span");
-          opBadge.className = "op";
-          opBadge.textContent = OP_LABELS[block.op] || block.op;
-          head.appendChild(opBadge);
-          const grow = document.createElement("span");
-          grow.className = "grow";
-          head.appendChild(grow);
-
-          const actions = document.createElement("div");
-          actions.className = "block-actions";
-
-          const move = (offset) => {
-            const sibling = offset < 0 ? element.previousElementSibling : element.nextElementSibling;
-            if (!sibling || !sibling.classList.contains("block")) return;
-            if (offset < 0) element.parentNode.insertBefore(element, sibling);
-            else element.parentNode.insertBefore(sibling, element);
-          };
-
-          const up = document.createElement("button");
-          up.textContent = "↑";
-          up.title = "上移";
-          up.addEventListener("click", () => move(-1));
-          actions.appendChild(up);
-
-          const down = document.createElement("button");
-          down.textContent = "↓";
-          down.title = "下移";
-          down.addEventListener("click", () => move(1));
-          actions.appendChild(down);
-
-          const remove = document.createElement("button");
-          remove.className = "danger";
-          remove.textContent = "✕";
-          remove.title = "删除这个积木";
-          remove.addEventListener("click", () => {
-            const container = element.parentNode;
-            element.remove();
-            if (!container.querySelector(":scope > .block")) renderBlocks(container, []);
-          });
-          actions.appendChild(remove);
-          head.appendChild(actions);
-          element.appendChild(head);
-
-          const fields = document.createElement("div");
-          fields.className = "block-fields";
-          for (const def of OP_FIELDS[block.op] || []) {
-            fields.appendChild(blockField(def, block[def.key]));
-          }
-          element.appendChild(fields);
-
-          if (block.op === "each") {
-            const sub = document.createElement("div");
-            sub.className = "sub-blocks";
-            const title = document.createElement("div");
-            title.className = "sub-title";
-            title.textContent = "对每个元素执行的积木（路径相对该元素）";
-            sub.appendChild(title);
-
-            const container = document.createElement("div");
-            container.className = "blocks";
-            renderBlocks(container, block.blocks || []);
-            sub.appendChild(container);
-
-            const adder = document.createElement("div");
-            adder.className = "sub-add";
-            const select = opSelect();
-            const add = document.createElement("button");
-            add.textContent = "+ 子积木";
-            add.addEventListener("click", () => {
-              container.querySelector(":scope > .blocks-empty")?.remove();
-              container.appendChild(buildBlockElement(blockDefaults(select.value)));
-            });
-            adder.appendChild(select);
-            adder.appendChild(add);
-            sub.appendChild(adder);
-            element.appendChild(sub);
-          }
-
-          return element;
-        }
-
-        function renderBlocks(container, blocks) {
-          container.innerHTML = "";
-          if (!blocks || !blocks.length) {
-            const empty = document.createElement("div");
-            empty.className = "blocks-empty";
-            empty.textContent = "还没有积木。选择类型后点「+ 添加积木」。";
-            container.appendChild(empty);
-            return;
-          }
-          for (const block of blocks) container.appendChild(buildBlockElement(block));
+        // ===== helpers =====
+        function defaultNameOf(path) {
+          const cleaned = String(path ?? "").replace(/\[\]/g, "");
+          const segs = cleaned.split(".").filter(Boolean);
+          const last = segs[segs.length - 1] || "value";
+          return last.replace(/[[\]]/g, "");
         }
 
         function parseConstant(text) {
           const raw = String(text ?? "").trim();
           if (!raw) return "";
-          try {
-            return JSON.parse(raw);
-          } catch {
-            return text;
+          try { return JSON.parse(raw); } catch { return text; }
+        }
+
+        function markDirty() { setTransformState("dirty"); }
+
+        // ===== 左侧：可用字段 =====
+        function renderAvailable() {
+          const box = $("tf-available");
+          box.innerHTML = "";
+          if (!tfState.available.length) {
+            box.innerHTML = '<div class="empty">点「探测字段」获取上游字段，或在上方手动添加。</div>';
+            return;
+          }
+          for (const field of tfState.available) {
+            const el = document.createElement("div");
+            el.className = `tf-field${field.isArrayItem ? " array" : ""}`;
+            const path = document.createElement("span");
+            path.className = "tf-path";
+            path.textContent = field.path;
+            path.title = field.path;
+            el.appendChild(path);
+            const type = document.createElement("span");
+            type.className = "tf-type";
+            type.textContent = field.type;
+            el.appendChild(type);
+            const add = document.createElement("button");
+            add.className = "ghost tf-add";
+            add.textContent = "＋";
+            add.title = "添加到编排输出";
+            add.addEventListener("click", () => addFieldRow(field.path));
+            el.appendChild(add);
+            if (field.sample !== undefined && field.sample !== null) {
+              const sample = document.createElement("div");
+              sample.className = "tf-sample";
+              const s = typeof field.sample === "object" ? JSON.stringify(field.sample) : String(field.sample);
+              sample.textContent = `示例：${s}`;
+              el.appendChild(sample);
+            }
+            box.appendChild(el);
           }
         }
 
-        function collectBlock(element) {
-          const block = { op: element.dataset.op };
-          for (const input of element.querySelectorAll(":scope > .block-fields [data-key]")) {
-            const key = input.dataset.key;
-            const raw = input.value;
-            if (key === "offsetSeconds") {
-              const offset = Number(raw);
-              if (raw.trim() !== "" && Number.isFinite(offset) && offset !== 0) block.offsetSeconds = offset;
-              continue;
-            }
-            if (key === "value") {
-              block.value = parseConstant(raw);
-              continue;
-            }
-            if (key === "as" && !raw.trim()) continue;
-            block[key] = raw;
-          }
-          if (block.op === "each") {
-            const nested = element.querySelector(":scope > .sub-blocks > .blocks");
-            block.blocks = collectBlocks(nested);
-          }
-          return block;
+        function addAvailableField(field) {
+          if (tfState.available.some((f) => f.path === field.path)) return;
+          tfState.available.push(field);
+          renderAvailable();
         }
 
-        function collectBlocks(container) {
-          if (!container) return [];
-          return [...container.querySelectorAll(":scope > .block")].map(collectBlock);
+        function addCustomField() {
+          const input = $("tf-custom-path");
+          const path = input.value.trim();
+          if (!path) { toast("请填写字段路径", "err"); return; }
+          addAvailableField({ path, type: "自定义", sample: null, isArrayItem: path.includes("[]") });
+          input.value = "";
+          toast(`已添加字段 ${path}`, "ok");
+        }
+
+        function addFieldRow(path) {
+          const box = $("tf-output");
+          const empty = box.querySelector(".empty");
+          if (empty) empty.remove();
+          box.appendChild(buildOutputRow({ kind: "field", from: path, as: defaultNameOf(path) }));
+          markDirty();
+        }
+
+        // ===== 右侧：编排输出 =====
+        function buildOutputRow(opts) {
+          const row = document.createElement("div");
+          row.className = `tf-row kind-${opts.kind}`;
+          row.dataset.kind = opts.kind;
+
+          const type = document.createElement("span");
+          type.className = "tf-type";
+          type.textContent = TF_KIND_LABELS[opts.kind] || opts.kind;
+          row.appendChild(type);
+
+          if (opts.kind === "field") {
+            const from = document.createElement("span");
+            from.className = "tf-from";
+            from.textContent = opts.from;
+            from.title = opts.from;
+            row.appendChild(from);
+            row.dataset.from = opts.from;
+          } else if (opts.kind === "now") {
+            const sel = document.createElement("select");
+            sel.className = "tf-format";
+            for (const [val, lbl] of NOW_FORMAT_OPTIONS) {
+              const opt = document.createElement("option");
+              opt.value = val; opt.textContent = lbl;
+              sel.appendChild(opt);
+            }
+            if (opts.format) sel.value = opts.format;
+            sel.addEventListener("change", markDirty);
+            row.appendChild(sel);
+          } else if (opts.kind === "constant") {
+            const val = document.createElement("input");
+            val.className = "tf-value";
+            val.placeholder = '值，如 "ok" 或 123';
+            val.value = opts.value !== undefined ? (typeof opts.value === "object" ? JSON.stringify(opts.value) : String(opts.value)) : "";
+            val.addEventListener("input", markDirty);
+            row.appendChild(val);
+          } else if (opts.kind === "text") {
+            const tpl = document.createElement("input");
+            tpl.className = "tf-template";
+            tpl.placeholder = "模板，用 {{path}} 占位";
+            tpl.value = opts.template || "";
+            tpl.addEventListener("input", markDirty);
+            row.appendChild(tpl);
+          } else if (opts.kind === "other") {
+            const pre = document.createElement("pre");
+            pre.className = "tf-other-json";
+            pre.textContent = JSON.stringify(opts.block, null, 2);
+            row.appendChild(pre);
+            row.dataset.block = JSON.stringify(opts.block);
+          }
+
+          const then = document.createElement("span");
+          then.className = "tf-then";
+          then.textContent = "→";
+          row.appendChild(then);
+
+          if (opts.kind !== "other") {
+            const as = document.createElement("input");
+            as.className = "tf-as";
+            as.placeholder = "输出名（自定义）";
+            as.value = opts.as || "";
+            as.addEventListener("input", markDirty);
+            row.appendChild(as);
+          }
+
+          const del = document.createElement("button");
+          del.className = "ghost tf-del";
+          del.textContent = "✕";
+          del.title = "移除";
+          del.addEventListener("click", () => {
+            row.remove();
+            markDirty();
+            if (!$("tf-output").children.length) showOutputEmpty();
+          });
+          row.appendChild(del);
+          return row;
+        }
+
+        function showOutputEmpty() {
+          const box = $("tf-output");
+          if (!box.children.length) {
+            const div = document.createElement("div");
+            div.className = "empty";
+            div.textContent = "从左侧添加字段，或点「快速编排」一键照搬。";
+            box.appendChild(div);
+          }
+        }
+
+        function addComputedRow(kind) {
+          const box = $("tf-output");
+          const empty = box.querySelector(".empty");
+          if (empty) empty.remove();
+          const seed = kind === "now" ? { kind, as: "generatedAt", format: "iso" }
+            : kind === "constant" ? { kind, as: "source", value: "" }
+            : { kind, as: "headline", template: "" };
+          box.appendChild(buildOutputRow(seed));
+          markDirty();
+        }
+
+        function blockToRow(block) {
+          switch (block.op) {
+            case "field": return buildOutputRow({ kind: "field", from: block.from, as: block.as || defaultNameOf(block.from) });
+            case "constant": return buildOutputRow({ kind: "constant", as: block.as, value: block.value });
+            case "now": return buildOutputRow({ kind: "now", as: block.as, format: block.format || "iso" });
+            case "text": return buildOutputRow({ kind: "text", as: block.as, template: block.template });
+            default: return buildOutputRow({ kind: "other", block });
+          }
         }
 
         function collectTransformConfig() {
           const root = $("transform-root").value.trim();
-          const config = {
-            passthrough: $("transform-passthrough").checked,
-            blocks: collectBlocks($("transform-blocks")),
-          };
+          const blocks = [];
+          for (const row of $("tf-output").children) {
+            if (!row.dataset || !row.dataset.kind) continue;
+            const kind = row.dataset.kind;
+            if (kind === "field") {
+              const from = row.dataset.from || "";
+              const as = row.querySelector(".tf-as").value.trim();
+              blocks.push({ op: "field", from, ...(as ? { as } : {}) });
+            } else if (kind === "now") {
+              const as = row.querySelector(".tf-as").value.trim();
+              const format = row.querySelector(".tf-format").value;
+              blocks.push({ op: "now", as: as || "generatedAt", format });
+            } else if (kind === "constant") {
+              const as = row.querySelector(".tf-as").value.trim();
+              const value = parseConstant(row.querySelector(".tf-value").value);
+              blocks.push({ op: "constant", as: as || "value", value });
+            } else if (kind === "text") {
+              const as = row.querySelector(".tf-as").value.trim();
+              const template = row.querySelector(".tf-template").value;
+              blocks.push({ op: "text", as: as || "text", template });
+            } else if (kind === "other") {
+              try { blocks.push(JSON.parse(row.dataset.block)); } catch {}
+            }
+          }
+          const config = { passthrough: $("transform-passthrough").checked, blocks };
           if (root) config.root = root;
           return config;
         }
 
-        function setTransformState(state) {
-          const labels = { saved: ["已保存", "ok"], dirty: ["未保存", "err"], fresh: ["新建", ""] };
-          const [text, kind] = labels[state] || labels.fresh;
-          const chip = $("transform-state");
-          chip.className = `badge ${kind}`;
-          chip.textContent = text;
-        }
-
-        function renderSavedTransforms() {
-          const box = $("transform-saved");
-          box.innerHTML = "";
-          if (!tfState.saved.length) {
-            const empty = document.createElement("div");
-            empty.className = "empty";
-            empty.textContent = "还没有保存过编排";
-            box.appendChild(empty);
-            return;
-          }
-          for (const entry of tfState.saved) {
-            const button = document.createElement("button");
-            button.className = "try-item transform-list-item";
-            const name = document.createElement("span");
-            name.className = "n";
-            name.textContent = entry.tool === "*" ? `${entry.source} / 全部接口` : `${entry.source} / ${entry.tool}`;
-            name.appendChild(badge(entry.tool === "*" ? "默认" : "接口", entry.tool === "*" ? "api" : "mcp"));
-            button.appendChild(name);
-            const detail = document.createElement("span");
-            detail.className = "d";
-            detail.textContent = `${(entry.config.blocks || []).length} 个积木${entry.config.root ? ` · 根路径 ${entry.config.root}` : ""}`;
-            button.appendChild(detail);
-            button.addEventListener("click", () => selectTransformTarget(entry.source, entry.tool));
-            box.appendChild(button);
-          }
-        }
-
-        async function refreshTransformSaved() {
-          const data = await api("/transforms");
-          tfState.saved = data.transforms || [];
-          renderSavedTransforms();
-        }
-
+        // ===== 工具 / 接口选择 =====
         function fillTransformSources() {
           const select = $("transform-source");
           const current = tfState.source || select.value;
@@ -2457,7 +2361,7 @@
             option.textContent = `${source.name}（${source.type === "mcp" ? "MCP" : "OpenAPI"} · ${source.toolCount ?? 0} 个工具）`;
             select.appendChild(option);
           }
-          if (current && state.sources.some((source) => source.name === current)) select.value = current;
+          if (current && state.sources.some((s) => s.name === current)) select.value = current;
           tfState.source = select.value;
         }
 
@@ -2467,7 +2371,7 @@
           select.innerHTML = "";
           const fallback = document.createElement("option");
           fallback.value = "*";
-          fallback.textContent = "（该来源全部接口的默认规则）";
+          fallback.textContent = "（全部接口默认规则）";
           select.appendChild(fallback);
           for (const tool of tfState.tools) {
             const option = document.createElement("option");
@@ -2475,15 +2379,19 @@
             option.textContent = tool.method ? `${tool.name} · ${tool.method} ${tool.path}` : tool.name;
             select.appendChild(option);
           }
-          select.value = [...select.options].some((option) => option.value === current) ? current : "*";
+          select.value = [...select.options].some((o) => o.value === current) ? current : "*";
           tfState.tool = select.value;
         }
 
         async function loadTransformTools(name) {
-          const source = state.sources.find((item) => item.name === name);
+          const source = state.sources.find((s) => s.name === name);
           if (!source) return;
-          const data = await api(`/sources/${sourceKind(source)}/${encodeURIComponent(name)}/tools`);
-          tfState.tools = data.tools || [];
+          try {
+            const data = await api(`/sources/${sourceKind(source)}/${encodeURIComponent(name)}/tools`);
+            tfState.tools = data.tools || [];
+          } catch {
+            tfState.tools = [];
+          }
           renderTransformTools();
         }
 
@@ -2492,12 +2400,23 @@
           tfState.tool = tool;
           const entry = tfState.saved.find((item) => item.source === source && item.tool === tool);
           const config = entry ? entry.config : { blocks: [] };
-          $("transform-title").textContent = `${source} · ${tool === "*" ? "全部接口（默认规则）" : tool}`;
           $("transform-root").value = config.root || "";
           $("transform-passthrough").checked = config.passthrough === true;
-          renderBlocks($("transform-blocks"), config.blocks || []);
-          $("transform-preview").value = "";
-          clearResult("transform-result");
+          const box = $("tf-output");
+          box.innerHTML = "";
+          const blocks = config.blocks || [];
+          if (!blocks.length) {
+            showOutputEmpty();
+          } else {
+            for (const block of blocks) box.appendChild(blockToRow(block));
+          }
+          const fromPaths = blocks.filter((b) => b.op === "field" && b.from).map((b) => b.from);
+          for (const p of fromPaths) {
+            if (!tfState.available.some((f) => f.path === p)) {
+              tfState.available.push({ path: p, type: "字段", sample: null, isArrayItem: p.includes("[]") });
+            }
+          }
+          renderAvailable();
           $("transform-status").textContent = entry ? `更新于 ${new Date(entry.updatedAt).toLocaleString("zh-CN", { hour12: false })}` : "";
           $("transform-delete").disabled = !entry;
           setTransformState(entry ? "saved" : "fresh");
@@ -2517,38 +2436,68 @@
           document.querySelector('nav.tabs button[data-tab="transform"]').click();
         }
 
-        async function initTransforms() {
+        function setTransformState(st) {
+          const labels = { saved: ["已保存", "ok"], dirty: ["未保存", "err"], fresh: ["新建", ""] };
+          const [text, kind] = labels[st] || labels.fresh;
+          const chip = $("transform-state");
+          chip.className = `badge ${kind}`;
+          chip.textContent = text;
+        }
+
+        // ===== 探测 / 快速编排 / 预览 =====
+        async function probeFields() {
+          const source = $("transform-source").value;
+          const tool = $("transform-tool").value;
+          if (!source) { toast("先选择来源", "err"); return; }
+          const src = state.sources.find((s) => s.name === source);
+          if (!src) { toast("来源不存在", "err"); return; }
+          const kind = sourceKind(src);
+          const btn = $("transform-probe");
+          btn.disabled = true; btn.textContent = "探测中…";
           try {
-            await refreshTransformSaved();
+            const data = await api(`/sources/${kind}/${encodeURIComponent(source)}/discover?tool=${encodeURIComponent(tool)}`);
+            if (data.fields && data.fields.length) {
+              tfState.available = data.fields;
+              if (data.sample !== null && data.sample !== undefined) {
+                $("transform-sample").value = JSON.stringify(data.sample, null, 2);
+              }
+              renderAvailable();
+              toast(`发现 ${data.fields.length} 个字段`, "ok");
+            } else {
+              tfState.available = [];
+              renderAvailable();
+              toast(data.note || "没有发现字段，可手动添加", data.note ? "" : "err");
+            }
           } catch (error) {
-            toast(`加载数据编排失败：${error.message}`, "err");
+            toast(`探测失败：${error.message}`, "err");
+          } finally {
+            btn.disabled = false; btn.textContent = "🔍 探测字段";
           }
-          if (!state.sources.length) {
-            $("transform-blocks").innerHTML = '<div class="blocks-empty">还没有来源，先去「添加来源」接入一个。</div>';
+        }
+
+        function quickOrchestrate() {
+          if (!tfState.available.length) {
+            $("transform-passthrough").checked = true;
+            markDirty();
+            toast("未探测到字段，已开启「原样输出」。建议先探测。", "");
             return;
           }
-          const pending = tfState.pending;
-          tfState.pending = null;
-          if (tfState.initialized && !pending) return;
-          tfState.initialized = true;
-          fillTransformSources();
-          const source = pending ? pending.source : tfState.source;
-          await selectTransformTarget(source, pending ? pending.tool : "*");
+          const box = $("tf-output");
+          box.innerHTML = "";
+          for (const field of tfState.available) {
+            if (field.path === "[]" || field.path === "[].*") continue;
+            box.appendChild(buildOutputRow({ kind: "field", from: field.path, as: defaultNameOf(field.path) }));
+          }
+          markDirty();
+          toast(`已快速编排 ${tfState.available.length} 个字段（原样照搬，可再自定义输出名）`, "ok");
         }
 
         async function previewTransform() {
           let sample;
+          try { sample = JSON.parse($("transform-sample").value || "null"); }
+          catch { setResult("transform-result", false, "示例响应不是合法 JSON", []); return; }
           try {
-            sample = JSON.parse($("transform-sample").value || "null");
-          } catch {
-            setResult("transform-result", false, "示例响应不是合法 JSON", []);
-            return;
-          }
-          try {
-            const result = await api("/transforms/preview", {
-              method: "POST",
-              body: JSON.stringify({ config: collectTransformConfig(), sample }),
-            });
+            const result = await api("/transforms/preview", { method: "POST", body: JSON.stringify({ config: collectTransformConfig(), sample }) });
             $("transform-preview").value = JSON.stringify(result.value, null, 2);
             clearResult("transform-result");
           } catch (error) {
@@ -2556,81 +2505,40 @@
           }
         }
 
-        $("transform-add-op").append(...Object.entries(OP_LABELS).map(([op, label]) => {
-          const option = document.createElement("option");
-          option.value = op;
-          option.textContent = label;
-          return option;
-        }));
-        $("transform-add").addEventListener("click", () => {
-          const container = $("transform-blocks");
-          container.querySelector(":scope > .blocks-empty")?.remove();
-          container.appendChild(buildBlockElement(blockDefaults($("transform-add-op").value)));
-          setTransformState("dirty");
-        });
-        $("transform-blocks").addEventListener("input", () => setTransformState("dirty"));
-        $("transform-blocks").addEventListener("change", () => setTransformState("dirty"));
-        $("transform-root").addEventListener("input", () => setTransformState("dirty"));
-        $("transform-passthrough").addEventListener("change", () => setTransformState("dirty"));
-        $("transform-source").addEventListener("change", async () => {
-          tfState.source = $("transform-source").value;
-          tfState.tool = "*";
-          try {
-            await loadTransformTools(tfState.source);
-            loadTransformEditor(tfState.source, "*");
-          } catch (error) {
-            toast(`加载接口列表失败：${error.message}`, "err");
-          }
-        });
-        $("transform-tool").addEventListener("change", () => {
-          tfState.tool = $("transform-tool").value;
-          loadTransformEditor(tfState.source, tfState.tool);
-        });
-        $("transform-load").addEventListener("click", () => {
-          loadTransformEditor($("transform-source").value, $("transform-tool").value);
-        });
-        $("transform-new").addEventListener("click", () => {
-          loadTransformEditor($("transform-source").value, $("transform-tool").value);
-          renderBlocks($("transform-blocks"), []);
-          $("transform-root").value = "";
-          $("transform-passthrough").checked = false;
-          setTransformState("fresh");
-        });
-        $("transform-preview-btn").addEventListener("click", previewTransform);
-        $("transform-grab").addEventListener("click", async () => {
+        async function grabResponse() {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
-          if (!source || !tool || tool === "*") {
-            toast("先选择一个具体接口，才能抓真实响应", "err");
-            return;
-          }
+          if (!source || !tool || tool === "*") { toast("先选择一个具体接口，才能抓真实响应", "err"); return; }
           try {
-            const data = await api("/invoke", {
-              method: "POST",
-              body: JSON.stringify({ source, tool, arguments: {}, raw: true }),
-            });
+            const data = await api("/invoke", { method: "POST", body: JSON.stringify({ source, tool, arguments: {}, raw: true }) });
             $("transform-sample").value = JSON.stringify(data.data ?? null, null, 2);
-            toast(`已填入 ${tool} 的${data.ok ? "" : "错误"}响应`, data.ok ? "ok" : "");
+            toast(`已填入 ${tool} 的响应`, data.ok ? "ok" : "");
             await previewTransform();
-          } catch (error) {
-            toast(`抓取失败：${error.message}`, "err");
-          }
-        });
-        $("transform-save").addEventListener("click", async () => {
-          const button = $("transform-save");
+          } catch (error) { toast(`抓取失败：${error.message}`, "err"); }
+        }
+
+        async function refreshTransformSaved() {
+          try {
+            const data = await api("/transforms");
+            tfState.saved = data.transforms || [];
+          } catch {}
+        }
+
+        function isOrchestrated(sourceName) {
+          return tfState.saved.some((e) => e.source === sourceName);
+        }
+
+        async function saveTransform() {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
-          if (!source) {
-            toast("请先选择来源", "err");
-            return;
-          }
+          if (!source) { toast("请先选择来源", "err"); return; }
           const config = collectTransformConfig();
-          if (!config.blocks.length) {
-            setResult("transform-result", false, "至少需要一个积木块", []);
+          if (!config.blocks.length && !config.passthrough) {
+            setResult("transform-result", false, "至少需要一个输出字段，或开启「保留原字段」。", []);
             return;
           }
-          button.disabled = true;
-          button.textContent = "保存中…";
+          const btn = $("transform-save");
+          btn.disabled = true; btn.textContent = "保存中…";
           try {
             await api("/transforms", { method: "PUT", body: JSON.stringify({ source, tool, config }) });
             toast(`已保存 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排`, "ok");
@@ -2639,11 +2547,11 @@
           } catch (error) {
             setResult("transform-result", false, `保存失败：${error.message}`, []);
           } finally {
-            button.disabled = false;
-            button.textContent = "保存编排";
+            btn.disabled = false; btn.textContent = "保存编排";
           }
-        });
-        $("transform-delete").addEventListener("click", async () => {
+        }
+
+        async function deleteTransform() {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
           if (!confirm(`确定删除 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排？`)) return;
@@ -2655,7 +2563,49 @@
           } catch (error) {
             setResult("transform-result", false, `删除失败：${error.message}`, []);
           }
+        }
+
+        async function initTransforms() {
+          try { await refreshTransformSaved(); } catch (error) { toast(`加载编排失败：${error.message}`, "err"); }
+          if (!state.sources.length) {
+            $("tf-available").innerHTML = '<div class="empty">还没有来源，先去「添加来源」接入一个。</div>';
+            return;
+          }
+          const pending = tfState.pending;
+          tfState.pending = null;
+          if (tfState.initialized && !pending) return;
+          tfState.initialized = true;
+          fillTransformSources();
+          const source = pending ? pending.source : tfState.source;
+          await selectTransformTarget(source, pending ? pending.tool : "*");
+        }
+
+        // ===== 事件绑定 =====
+        $("transform-source").addEventListener("change", async () => {
+          tfState.source = $("transform-source").value;
+          tfState.tool = "*";
+          try { await loadTransformTools(tfState.source); loadTransformEditor(tfState.source, "*"); }
+          catch (error) { toast(`加载接口列表失败：${error.message}`, "err"); }
         });
+        $("transform-tool").addEventListener("change", () => {
+          tfState.tool = $("transform-tool").value;
+          loadTransformEditor(tfState.source, tfState.tool);
+        });
+        $("transform-probe").addEventListener("click", probeFields);
+        $("transform-quick").addEventListener("click", quickOrchestrate);
+        $("tf-custom-add").addEventListener("click", addCustomField);
+        $("tf-custom-path").addEventListener("keydown", (e) => { if (e.key === "Enter") addCustomField(); });
+        $("tf-add-now").addEventListener("click", () => addComputedRow("now"));
+        $("tf-add-constant").addEventListener("click", () => addComputedRow("constant"));
+        $("tf-add-text").addEventListener("click", () => addComputedRow("text"));
+        $("transform-root").addEventListener("input", markDirty);
+        $("transform-passthrough").addEventListener("change", markDirty);
+        $("tf-output").addEventListener("input", (e) => { if (e.target.classList.contains("tf-as")) markDirty(); });
+        $("tf-output").addEventListener("change", markDirty);
+        $("transform-grab").addEventListener("click", grabResponse);
+        $("transform-preview-btn").addEventListener("click", previewTransform);
+        $("transform-save").addEventListener("click", saveTransform);
+        $("transform-delete").addEventListener("click", deleteTransform);
 
         // ---------------- prompts ----------------
         async function fetchPrompt(kind) {
@@ -2877,7 +2827,6 @@
         }
         addSecurityRow();
         $("mcp-transport").dispatchEvent(new Event("change"));
-        syncCredentialForm();
         loadOverview();
         loadCredentials();
       })();

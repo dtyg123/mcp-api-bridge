@@ -20,8 +20,8 @@ TypeScript 实现，单进程、单个 Docker 镜像、HTTP 与 stdio 双形态�
 - **双向**：MCP → REST/OpenAPI，API → MCP，同一份注册表同时对外提供两套接口
 - **文档通吃**：OpenAPI 3.0 / 3.1，以及**自动转换的 Swagger 2.0**（`in: body`、`definitions`、`securityDefinitions`，实测雨云 API 217 个操作）
 - **零配置接入**：`spec` 支持 URL / 本地文件 / 粘贴文本，`$ref` 自动内联（含外部引用、JSON/YAML）
-- **Web 管理台**：可视化添加来源、逐项测试接口、管理可复用的「认证信息」、用积木编排返回数据、生成可直接粘给 AI 的接入提示词
-- **数据编排**：响应到达调用方前按积木重组——挑字段、改名、补当前时间 / 固定文本 / 计数，无需改上游或写代码
+- **Web 管理台**：可视化添加来源、逐项测试接口、管理可复用的「认证信息」、用左右字段映射编排返回数据、生成可直接粘给 AI 的接入提示词
+- **数据编排**：响应到达调用方前重新组装——挑字段、改名、补当前时间 / 固定文本 / 计数，无需改上游或写代码；新增来源后先「编排」再对外提供 MCP 工具
 - **原生 MCP**：Streamable HTTP（stateful / stateless）、单来源端点 `/mcp/{source}`、stdio 模式
 - **部署友好**：单镜像、非 root、健康检查、`data/` 卷持久化、环境变量插值，上游挂了网关照常启动（降级）
 
@@ -107,6 +107,7 @@ POST /admin/api/credentials     新增 / 更新认证信息
 GET  /admin/api/transforms      数据编排列表
 PUT  /admin/api/transforms      保存某来源 / 接口的编排
 POST /admin/api/transforms/preview   用示例响应试算编排（不保存）
+GET  /admin/api/sources/:kind/:name/discover?tool=  探测某接口返回，递归列出可用字段路径（用于编排）
 ```
 
 ---
@@ -121,7 +122,7 @@ POST /admin/api/transforms/preview   用示例响应试算编排（不保存）
 | **接口测试** | 逐项调用某个来源的每个接口，填写参数、查看真实响应（请求会真实发往上游） |
 | **添加来源** | MCP（stdio / Streamable HTTP / SSE）与 OpenAPI 两个表单，保存后**立即生效**，无需重启；OpenAPI 表单可直接勾选「认证信息」 |
 | **认证信息** | 可复用的请求头 / Bearer / Basic 凭证；值保存在服务器本地并始终以掩码显示，来源按名称引用 |
-| **数据编排** | 用积木重组接口返回：取字段、改名、拼模板、加当前时间 / 固定值、计数、逐项编排；带示例响应实时预览 |
+| **数据编排** | 左右字段映射：左列是「探测字段」得到的上游字段（可手动补），右列是自定义输出名（明亮可改）；一键「快速编排」原样照搬，再补当前时间 / 固定值 / 模板文本；带示例响应实时预览。新增来源后会自动跳到这里，提示先完成编排 |
 | **接入提示词** | 四类提示词一键复制：① 让 AI 通过 MCP 接入 ② 让 AI 通过 REST/OpenAPI 接入 ③ 让 AI 生成「新增 MCP 来源」配置 ④ 让 AI 生成「新增 OpenAPI 来源」配置 |
 | **JSON 导入** | 粘贴单条 `{ "type": "mcp" \\| "api", ... }`、批量 `{ mcpServers: [], apis: [] }`，或直接粘贴 Claude Desktop / Cursor 的 `mcpServers` 配置 |
 
@@ -306,26 +307,33 @@ apis:
 
 ---
 
-## 数据编排（响应积木）
+## 数据编排（字段映射）
 
-「数据编排」在响应到达调用方之前重新组装数据：挑出需要的字段、改名、补上当前时间或固定文本，适合把上游的原始响应整理成前端 / AI 直接可用的形状。
+「数据编排」在响应到达调用方之前重新组装数据：挑出需要的字段、改名、补上当前时间或固定文本，适合把上游的原始响应整理成前端 / AI 直接可用的形状。**新增来源后必须先完成编排，才对外提供 MCP 工具**（概览页会给未编排的来源打上「未编排」标记，添加来源成功也会自动跳到编排页）。
 
 配置以 `source + tool` 为键（`tool: "*"` 是该来源全部接口的默认规则），保存在 `data/transforms.json`，只作用于 **REST 面**（`/api/{source}/{tool}`）和管理台「接口测试」；MCP 面的 `structuredContent` 保持原样。
+
+### 管理台怎么用（更简单了）
+
+编排页改成**左右字段映射**，不再需要拖积木：
+
+1. 选「来源 / 接口」→ 点 **🔍 探测字段**：后端会真实调用一次该接口（无参，best-effort），把返回 JSON 递归展开成一条条字段路径，例如 `data[].Title`、`code`。数组元素会标成 `data[].xxx` 方便逐条映射。
+2. 左侧「可用字段」里每条后面点 **＋** 就加到右侧「编排输出」；也可以手动填路径添加自定义字段。
+3. 右侧每条都能改**输出名（自定义，明亮显示）**，并能补「当前时间 / 固定值 / 模板文本」这类计算字段。
+4. 想省事就点 **🚀 快速编排**：把左侧所有字段**原样照搬**到右侧（输出名默认取末级字段名），之后再挑着改。
+5. 底部「示例响应」+「预览」可实时试算；「保存编排」后才生效。没探测到字段时，快速编排会自动开启「保留原字段（passthrough）」。
+
+> 历史里保存过的「逐项编排 / 计数 / 拼接」等复杂编排不会丢：管理台会把它作为只读的「其他」行显示，依然照常在 REST 面生效。
+
+### 配置格式（也可直接写 JSON）
 
 ```json
 {
   "root": "data",
   "passthrough": false,
   "blocks": [
-    {
-      "op": "each",
-      "from": "",
-      "as": "items",
-      "blocks": [
-        { "op": "field", "from": "Title", "as": "title" },
-        { "op": "field", "from": "TimeStamp", "as": "time" }
-      ]
-    },
+    { "op": "field", "from": "Title", "as": "title" },
+    { "op": "field", "from": "TimeStamp", "as": "time" },
     { "op": "count", "from": "", "as": "total" },
     { "op": "now", "as": "fetchedAt", "format": "iso" }
   ]
@@ -341,28 +349,31 @@ apis:
   "tool": "get_news",
   "transformed": true,
   "data": {
-    "items": [{ "title": "……", "time": "2026-10-04T09:52:13.654Z" }],
+    "title": "……",
+    "time": "2026-10-04T09:52:13.654Z",
     "total": 10,
     "fetchedAt": "2026-11-01T04:08:37.457Z"
   }
 }
 ```
 
-| 积木（`op`） | 作用 | 参数 |
-| --- | --- | --- |
-| `field` | 取一个字段，可改名 | `from`、`as`（留空 = 同名） |
-| `text` | 模板文本，`{{path}}` 用数据填充 | `as`、`template` |
-| `constant` | 固定值（字符串 / 数字 / JSON 对象） | `as`、`value` |
-| `now` | 当前时间 | `as`、`format`（`iso` / `date` / `time` / `timestamp` / `locale`）、`offsetSeconds` |
-| `count` | 数组长度 / 对象键数（其它值返回 0 或 1） | `from`、`as` |
-| `join` | 把数组拼成字符串 | `from`、`as`、`separator` |
-| `omit` | 删掉一个字段（配合 `passthrough`） | `from` |
-| `each` | 对数组每个元素执行一组子积木 | `from`、`as`、`blocks` |
+支持的算子（`op`）：
+
+| 算子（`op`） | 作用 | 参数 | 管理台 |
+| --- | --- | --- | --- |
+| `field` | 取一个字段，可改名 | `from`、`as`（留空 = 同名） | ✅ 字段映射 |
+| `text` | 模板文本，`{{path}}` 用数据填充 | `as`、`template` | ✅ 计算字段 |
+| `constant` | 固定值（字符串 / 数字 / JSON 对象） | `as`、`value` | ✅ 计算字段 |
+| `now` | 当前时间 | `as`、`format`（`iso` / `date` / `time` / `timestamp` / `locale`）、`offsetSeconds` | ✅ 计算字段 |
+| `count` | 数组长度 / 对象键数 | `from`、`as` | 仅 JSON / API |
+| `join` | 把数组拼成字符串 | `from`、`as`、`separator` | 仅 JSON / API |
+| `omit` | 删掉一个字段（配合 `passthrough`） | `from` | 仅 JSON / API |
+| `each` | 对数组每个元素执行一组子积木 | `from`、`as`、`blocks` | 仅 JSON / API（历史只读显示） |
 
 几点约定：
 
 - `root` 为空表示整个 `data` 载荷；`from` 留空表示「当前根」，所以 `root` 指向数组时可以用 `count` / `each` 直接处理整个数组。
-- 没被积木选中的字段默认丢弃；`passthrough: true` 保留原字段，再用 `omit` 删掉敏感字段。
+- 没被选中的字段默认丢弃；`passthrough: true` 保留原字段，再用 `omit` 删掉敏感字段。
 - 子积木最多嵌套 5 层；每层的路径都相对于它处理的那个元素。
 - 编排本身出错不会吞掉响应：封装里会带 `transformed: false` 和 `transformError`，同时仍然返回原数据。
 - 管理台「接口测试」可以传 `raw: true` 查看未编排的原始响应。

@@ -8,7 +8,7 @@ import { buildPrompt, type PromptKind } from "../admin/prompts.js";
 import { testSource } from "../admin/service.js";
 import { maskCredential, type CredentialStore } from "../admin/credentials.js";
 import type { SourceKind, SourceStore } from "../admin/store.js";
-import { applyTransform, type TransformConfig, type TransformStore } from "../admin/transforms.js";
+import { applyTransform, discoverFields, type TransformConfig, type TransformStore } from "../admin/transforms.js";
 import { buildOpenApiDocument } from "../convert/tools-to-openapi.js";
 import { createGatewayServer, describeTools } from "../mcp/gateway.js";
 import type { Registry } from "../registry.js";
@@ -520,6 +520,60 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Admin invocation failed (${source}/${identifier}): ${message}`);
       res.status(502).json({ ok: false, error: "upstream_error", message, durationMs });
+    }
+  });
+
+  // Best-effort truncation so a huge sample doesn't blow up the response.
+  const truncateSample = (value: unknown): unknown => {
+    if (value === null || value === undefined) return value;
+    if (typeof value === "object") {
+      const json = JSON.stringify(value);
+      return json.length > 200 ? `${json.slice(0, 197)}…` : value;
+    }
+    const text = String(value);
+    return text.length > 200 ? `${text.slice(0, 197)}…` : text;
+  };
+
+  /**
+   * Discover the fields an upstream tool returns. We invoke the tool with no
+   * arguments (best-effort) and walk the structured result, returning a flat
+   * list of `{path, type, sample}` the orchestration UI can map from.
+   */
+  router.get(`${adminApi}/sources/:kind/:name/discover`, adminAuth, async (req: Request, res: Response) => {
+    const kind = kindOf(req.params.kind);
+    if (!kind) {
+      res.status(400).json({ ok: false, error: "invalid_kind", message: 'kind 必须是 "mcp" 或 "api"。' });
+      return;
+    }
+    const name = req.params.name;
+    const identifier = typeof req.query.tool === "string" ? req.query.tool : "";
+    const tool = registry.findTool(name, identifier);
+    if (!tool) {
+      res.status(404).json({ ok: false, error: "unknown_tool", message: `来源 "${name}" 上没有工具 "${identifier || "*"}"。` });
+      return;
+    }
+    try {
+      const result = await tool.invoke({});
+      const structured =
+        result.structuredContent !== undefined
+          ? result.structuredContent
+          : (() => {
+              const parsed = safeJsonParse(textOf(result));
+              return parsed.ok ? parsed.value : null;
+            })();
+      const fields = discoverFields(structured).map((field) => ({ ...field, sample: truncateSample(field.sample) }));
+      res.json({ ok: true, source: name, tool: identifier || "*", fields, sample: truncateSample(structured) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Field discovery failed (${name}/${identifier || "*"}): ${message}`);
+      res.json({
+        ok: true,
+        source: name,
+        tool: identifier || "*",
+        fields: [],
+        sample: null,
+        note: `无法自动探测字段：${message}\n请手动添加字段路径。`,
+      });
     }
   });
 

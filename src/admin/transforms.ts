@@ -51,6 +51,73 @@ export type TransformEntry = {
   updatedAt: string;
 };
 
+/**
+ * A field discovered by walking an upstream response.
+ *
+ * `path` is the dotted/bracketed path that can be fed straight into a `field`
+ * block's `from` (e.g. `data[].Title`). `isArrayItem` flags paths that live
+ * inside an array — the UI uses it to render the field as a list.
+ */
+export type FieldInfo = {
+  path: string;
+  type: "string" | "number" | "boolean" | "object" | "array" | "null";
+  sample: unknown;
+  isArrayItem: boolean;
+};
+
+/**
+ * Recursively walk a JSON value and collect every leaf (and array-element)
+ * path. Array items are reported with a `[]` placeholder (`data[].Title`),
+ * so the same shape works whether the array has zero, one or many elements.
+ * Object keys order is preserved; paths are de-duplicated (first wins).
+ */
+export function discoverFields(value: unknown, prefix = ""): FieldInfo[] {
+  const collected: FieldInfo[] = [];
+  const walk = (val: unknown, current: string): void => {
+    if (val === null || val === undefined) return;
+    if (Array.isArray(val)) {
+      if (val.length === 0) return;
+      const first = val[0];
+      if (first !== null && typeof first === "object" && !Array.isArray(first)) {
+        for (const key of Object.keys(first)) {
+          const path = current ? `${current}[].${key}` : `[].${key}`;
+          const child = (first as Record<string, unknown>)[key];
+          collected.push(fieldOf(path, child));
+          if (child !== null && typeof child === "object") walk(child, path);
+        }
+      } else {
+        const path = current ? `${current}[]` : "[]";
+        collected.push(fieldOf(path, first));
+      }
+      return;
+    }
+    if (typeof val === "object") {
+      for (const key of Object.keys(val)) {
+        const path = current ? `${current}.${key}` : key;
+        const child = (val as Record<string, unknown>)[key];
+        collected.push(fieldOf(path, child));
+        if (child !== null && typeof child === "object") walk(child, path);
+      }
+    }
+  };
+  walk(value, prefix);
+  const seen = new Set<string>();
+  return collected.filter((field) => {
+    if (seen.has(field.path)) return false;
+    seen.add(field.path);
+    return true;
+  });
+}
+
+function fieldOf(path: string, value: unknown): FieldInfo {
+  let type: FieldInfo["type"];
+  if (value === null) type = "null";
+  else if (Array.isArray(value)) type = "array";
+  else if (typeof value === "object") type = "object";
+  else type = typeof value as FieldInfo["type"];
+  return { path, type, sample: value, isArrayItem: path.includes("[]") };
+}
+
 const MAX_DEPTH = 5;
 const OPS = ["field", "text", "constant", "now", "count", "join", "omit", "each"] as const;
 

@@ -40,6 +40,11 @@ async function adminPost(pathname: string, body: unknown): Promise<{ status: num
   return { status: response.status, json: await response.json() };
 }
 
+async function adminGet(pathname: string): Promise<{ status: number; json: any }> {
+  const response = await fetch(`${base}${pathname}`, { headers: authHeaders() });
+  return { status: response.status, json: await response.json() };
+}
+
 before(async () => {
   mock = await startMockApi();
   tempDir = await mkdtemp(path.join(tmpdir(), "mcp-bridge-admin-"));
@@ -368,6 +373,42 @@ test("response transforms reshape what the REST surface returns", async () => {
   const afterDelete = await fetch(`${base}/api/petstore-cred/listPets?limit=1`).then((r) => r.json());
   assert.equal(afterDelete.transformed, undefined);
   assert.equal(afterDelete.data.items.length, 1);
+});
+
+test("the discover endpoint walks an upstream response into usable field paths", async () => {
+  const { status, json } = await adminGet("/admin/api/sources/api/petstore/discover?tool=listPets");
+  assert.equal(status, 200);
+  assert.equal(json.ok, true);
+  assert.equal(json.source, "petstore");
+  assert.equal(json.tool, "listPets");
+  const paths = json.fields.map((field: any) => field.path);
+  assert.ok(paths.includes("items[].id"), `expected items[].id, got ${paths.join(", ")}`);
+  assert.ok(paths.includes("items[].name"));
+  assert.ok(paths.includes("items[].status"));
+  // Array items are flagged so the UI can render list fields.
+  const itemId = json.fields.find((field: any) => field.path === "items[].id");
+  assert.equal(itemId.isArrayItem, true);
+  assert.equal(itemId.type, "string");
+  // The sample is capped so a huge payload cannot blow up the response.
+  assert.ok(JSON.stringify(json.sample).length <= 210);
+});
+
+test("the discover endpoint returns an empty field list for a tool with no discoverable shape", async () => {
+  // createPet is a POST that returns { created: <body> }; invoked with no body
+  // it yields an empty object, so discovery returns ok with no fields.
+  const { status, json } = await adminGet("/admin/api/sources/api/petstore/discover?tool=createPet");
+  assert.equal(status, 200);
+  assert.equal(json.ok, true);
+  assert.ok(Array.isArray(json.fields));
+  assert.equal(json.source, "petstore");
+  assert.equal(json.tool, "createPet");
+});
+
+test("the discover endpoint reports an unknown tool without throwing", async () => {
+  const { status, json } = await adminGet("/admin/api/sources/api/petstore/discover?tool=ghostTool");
+  assert.equal(status, 404);
+  assert.equal(json.ok, false);
+  assert.equal(json.error, "unknown_tool");
 });
 
 test("/admin/api/test validates a source without saving it", async () => {
