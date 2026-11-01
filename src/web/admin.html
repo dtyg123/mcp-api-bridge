@@ -641,11 +641,7 @@
       <!-- ================= 提示词 ================= -->
       <section id="tab-prompt" hidden>
         <div class="card" style="margin-bottom: 16px">
-          <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap">
-            <label class="field" style="margin: 0; min-width: 220px">
-              <span>提示词范围</span>
-              <select id="prompt-source"><option value="">全部来源</option></select>
-            </label>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
             <button id="prompt-refresh">重新生成</button>
             <span class="sub">复制后直接粘给 Claude / Cursor / ChatGPT 等 AI 工具即可。</span>
           </div>
@@ -962,19 +958,6 @@
             row.appendChild(actionsCell);
             tbody.appendChild(row);
           }
-        }
-
-        function fillSourceSelect(sources) {
-          const select = $("prompt-source");
-          const current = select.value;
-          select.innerHTML = '<option value="">全部来源</option>';
-          for (const source of sources) {
-            const option = document.createElement("option");
-            option.value = source.name;
-            option.textContent = `${source.name}（${source.type === "mcp" ? "MCP" : "OpenAPI"}）`;
-            select.appendChild(option);
-          }
-          select.value = current;
         }
 
         // ---------------- interface tester (逐项测试) ----------------
@@ -1639,7 +1622,6 @@
             $("base-chip").textContent = BOOT.baseUrl || location.origin;
             await refreshTransformSaved();
             renderSources(state.sources);
-            fillSourceSelect(state.sources);
             fillTrySources(state.sources);
           } catch (error) {
             $("source-rows").innerHTML = '<tr><td colspan="6" class="empty">无法加载来源列表</td></tr>';
@@ -2679,9 +2661,8 @@
         $("transform-delete").addEventListener("click", deleteTransform);
 
         // ---------------- prompts ----------------
-        async function fetchPromptFor(kind, sourceOverride) {
+        async function fetchPromptFor(kind, source) {
           const params = new URLSearchParams({ kind });
-          const source = sourceOverride !== undefined ? sourceOverride : $("prompt-source").value;
           if (source && (kind === "mcp" || kind === "rest" || kind === "service")) params.set("source", source);
           if (kind === "add-mcp") {
             params.set("name", $("hint-mcp-name").value.trim());
@@ -2706,8 +2687,7 @@
           const box = $("prompt-services");
           if (!box) return;
           box.innerHTML = "";
-          const selected = $("prompt-source").value;
-          const sources = selected ? state.sources.filter((s) => s.name === selected) : state.sources;
+          const sources = state.sources;
           if (!sources.length) {
             box.innerHTML = '<div class="empty">还没有来源，先去「来源」接入一个。</div>';
             return;
@@ -2783,7 +2763,6 @@
         });
 
         $("prompt-refresh").addEventListener("click", loadPrompts);
-        $("prompt-source").addEventListener("change", () => loadPrompts());
         ["hint-mcp-name", "hint-mcp-target", "hint-mcp-note", "hint-api-name", "hint-api-spec", "hint-api-note"].forEach((id) => {
           $(id).addEventListener("change", () => loadPrompts());
         });
