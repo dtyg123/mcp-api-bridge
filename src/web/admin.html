@@ -558,25 +558,40 @@
             <label class="field" id="api-spec-text-wrap" hidden><span>文档内容（OpenAPI 3.x 或 Swagger 2.0，JSON / YAML）</span><textarea id="api-spec-text" style="min-height: 140px" placeholder='{ "openapi": "3.1.0", ... }  或  { "swagger": "2.0", ... }'></textarea></label>
 
             <label class="field"><span>Base URL（留空则用文档里的 <code>servers[0].url</code>）</span><input id="api-baseurl" type="text" placeholder="https://api.example.com/v1" /></label>
-            <label class="field"><span>默认请求头（每行 <code>Header: value</code>）</span><textarea id="api-headers" style="min-height: 56px" placeholder="User-Agent: mcp-api-bridge"></textarea></label>
 
             <div class="field">
               <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
-                复用「认证信息」里的凭证（可选，轮换密钥只改认证信息）
+                认证方式（可选，三选一；避免重复注入同一个请求头）
               </span>
-              <div id="api-credential-refs" class="checkline" style="margin-bottom: 0"></div>
+              <div class="seg" id="api-auth-seg" style="margin-bottom: 6px">
+                <button type="button" data-auth="none" class="active">不需要</button>
+                <button type="button" data-auth="vault">复用全局凭证</button>
+                <button type="button" data-auth="scheme">按文档方案</button>
+              </div>
             </div>
 
-            <div class="field">
-              <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
-                鉴权凭证（按文档 <code>securitySchemes</code> 的方案名填）
-              </span>
-              <div id="api-security-rows"></div>
-              <button class="linkbtn" id="api-security-add">+ 添加凭证</button>
+            <div id="api-auth-vault" hidden>
+              <div class="field">
+                <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
+                  勾选要引用的全局凭证（在下方「🔑 全局凭证」卡片里管理，轮换密钥只改一处）
+                </span>
+                <div id="api-credential-refs" class="checkline" style="margin-bottom: 0"></div>
+              </div>
+            </div>
+
+            <div id="api-auth-scheme" hidden>
+              <div class="field">
+                <span style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px">
+                  按文档 <code>securitySchemes</code> 的方案名填凭证
+                </span>
+                <div id="api-security-rows"></div>
+                <button type="button" class="linkbtn" id="api-security-add">+ 添加凭证</button>
+              </div>
             </div>
 
             <details class="adv">
-              <summary>高级选项（过滤 / 暴露面 / 超时）</summary>
+              <summary>高级选项（额外请求头 / 过滤 / 暴露面 / 超时）</summary>
+              <label class="field"><span>额外请求头（<b>非认证</b>，每行 <code>Header: value</code>，如 User-Agent）</span><textarea id="api-headers" style="min-height: 56px" placeholder="User-Agent: mcp-api-bridge"></textarea></label>
               <label class="field"><span>只包含（逗号分隔，支持 <code>*</code>，如 <code>GET /pet/*</code>）</span><input id="api-include" type="text" placeholder="留空 = 全部" /></label>
               <label class="field"><span>排除（逗号分隔）</span><input id="api-exclude" type="text" placeholder="DELETE /pet/*" /></label>
               <div class="checkline">
@@ -1872,6 +1887,21 @@
         });
 
         // ---------------- add: OpenAPI ----------------
+        // Auth is one of: none / reuse a global credential / per-spec scheme.
+        // Keeping it mutually exclusive avoids injecting the same header twice.
+        let apiAuthMode = "none";
+        function setApiAuthMode(mode) {
+          apiAuthMode = ["vault", "scheme"].includes(mode) ? mode : "none";
+          document.querySelectorAll("#api-auth-seg button").forEach((button) => {
+            button.classList.toggle("active", button.dataset.auth === apiAuthMode);
+          });
+          $("api-auth-vault").hidden = apiAuthMode !== "vault";
+          $("api-auth-scheme").hidden = apiAuthMode !== "scheme";
+        }
+        document.querySelectorAll("#api-auth-seg button").forEach((button) => {
+          button.addEventListener("click", () => setApiAuthMode(button.dataset.auth));
+        });
+
         function addSecurityRow(scheme = "", token = "", username = "", password = "") {
           const row = document.createElement("div");
           row.className = "kv-row";
@@ -1911,14 +1941,15 @@
         function buildApiEntry() {
           const name = $("api-name").value.trim();
           if (!name) throw new Error("请填写名称");
+          const checkedRefs = [...$("api-credential-refs").querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
           const entry = {
             name,
             description: $("api-desc").value.trim() || undefined,
             spec: apiSpecMode === "text" ? "" : $("api-spec").value.trim(),
             baseUrl: $("api-baseurl").value.trim(),
             headers: parseKv($("api-headers").value, ":"),
-            security: collectSecurity(),
-            credentialRefs: [...$("api-credential-refs").querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value),
+            security: apiAuthMode === "scheme" ? collectSecurity() : {},
+            credentialRefs: apiAuthMode === "vault" ? checkedRefs : [],
             include: splitList($("api-include").value),
             exclude: splitList($("api-exclude").value),
             exposure: {
@@ -1950,6 +1981,9 @@
           else $("api-spec-text").value = spec;
           $("api-baseurl").value = entry.baseUrl || "";
           $("api-headers").value = kvText(entry.headers);
+          const hasRefs = Array.isArray(entry.credentialRefs) && entry.credentialRefs.length > 0;
+          const hasSecurity = entry.security && Object.keys(entry.security).length > 0;
+          setApiAuthMode(hasRefs ? "vault" : hasSecurity ? "scheme" : "none");
           renderApiCredentialChoices(entry.credentialRefs || []);
           $("api-security-rows").innerHTML = "";
           for (const [scheme, credential] of Object.entries(entry.security || {})) {
@@ -1974,6 +2008,7 @@
           $("api-spec-text").value = "";
           $("api-baseurl").value = "";
           $("api-headers").value = "";
+          setApiAuthMode("none");
           renderApiCredentialChoices([]);
           $("api-security-rows").innerHTML = "";
           $("api-include").value = "";
