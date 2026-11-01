@@ -355,13 +355,19 @@ function normalizeBlocks(raw: unknown, where: string, depth: number): TransformB
 export function normalizeTransform(raw: unknown): TransformConfig {
   if (!isPlainObject(raw)) throw new ConfigError("数据编排配置必须是对象。");
   const blocks = normalizeBlocks(raw.blocks ?? [], "blocks", 0);
-  if (blocks.length === 0) throw new ConfigError("至少需要一个积木块。");
+  const passthrough = raw.passthrough === true;
+  // A passthrough-only config (no blocks, keep everything) is valid — the UI
+  // and the auto-orchestrator fall back to it when a tool needs arguments and
+  // no sample fields could be discovered.
+  if (blocks.length === 0 && !passthrough) {
+    throw new ConfigError("至少需要一个积木块，或开启「保留原字段」。");
+  }
   const root = typeof raw.root === "string" && raw.root.trim() ? raw.root.trim() : undefined;
   // Validate the root path early so the UI fails fast.
   if (root) parsePath(root);
   return {
     ...(root ? { root } : {}),
-    ...(raw.passthrough === true ? { passthrough: true } : {}),
+    ...(passthrough ? { passthrough: true } : {}),
     blocks,
   };
 }

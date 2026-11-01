@@ -323,7 +323,7 @@
     <header>
       <div class="brand">
         <div class="logo">⇄</div>
-        <div>MCP ⇄ API 网关<br /><small>管理台 · 添加来源 / 生成接入提示词</small></div>
+        <div>MCP ⇄ API 网关<br /><small>管理台 · 来源 / 工作台 / 接入提示词</small></div>
       </div>
       <div class="spacer"></div>
       <span class="chip" id="base-chip">…</span>
@@ -336,11 +336,9 @@
 
     <nav class="tabs">
       <button data-tab="overview" class="active">概览</button>
-      <button data-tab="try">接口测试</button>
-      <button data-tab="add">添加来源</button>
-      <button data-tab="transform">编排</button>
+      <button data-tab="sources">来源</button>
+      <button data-tab="workspace">工作台</button>
       <button data-tab="prompt">接入提示词</button>
-      <button data-tab="import">JSON 导入</button>
     </nav>
 
     <main>
@@ -357,7 +355,7 @@
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
             <div style="flex: 1">
               <h2>来源列表</h2>
-              <div class="hint" style="margin: 0">名称即 URL 中的 <code>{source}</code>；带「管理台」标记的可直接删除。</div>
+              <div class="hint" style="margin: 0">名称即 URL 中的 <code>{source}</code>。点「打开」进入工作台测试接口或编排数据；来自配置文件的来源同样可在管理台删除。</div>
             </div>
             <button id="reload-sources" class="ghost">重新加载全部</button>
           </div>
@@ -377,141 +375,118 @@
         </div>
       </section>
 
-      <!-- ================= 接口测试 ================= -->
-      <section id="tab-try" hidden>
-        <div class="tester">
-          <aside class="card tester-side">
-            <h2>接口测试</h2>
-            <div class="hint" style="margin: -4px 0 12px">逐个调用接口，查看真实响应。请求会真实发往上游服务。</div>
-            <label class="field"><span>来源</span><select id="try-source"></select></label>
-            <label class="field"><span>过滤</span><input id="try-search" type="text" placeholder="名称 / 描述关键词" /></label>
-            <div class="try-list" id="try-list"><div class="empty">加载中…</div></div>
-            <div class="hint try-count" id="try-count"></div>
-          </aside>
-          <div class="tester-main">
-            <div class="card" id="try-detail"><div class="empty">从左侧选择一个接口开始测试</div></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= 编排 ================= -->
-      <section id="tab-transform" hidden>
-        <div class="tf-banner">
-          🧭 <b>编排是接入 MCP 前的必要步骤。</b> 选择接口 → 探测字段 → 在右侧编排输出（或一键「快速编排」）→ 保存。所有新增的 API 都需要先完成编排，再对外提供 MCP 工具。
+      <!-- ================= 工作台（接口测试 + 编排） ================= -->
+      <section id="tab-workspace" hidden>
+        <div class="seg" id="ws-seg">
+          <button data-ws="try" class="active">接口测试</button>
+          <button data-ws="transform">编排</button>
         </div>
 
-        <div class="tf-topbar card">
-          <div class="tf-selectors">
-            <label class="field"><span>来源</span><select id="transform-source"></select></label>
-            <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（全部接口默认规则）</option></select></label>
-          </div>
-          <div class="tf-topactions">
-            <button id="transform-probe" class="ghost">🔍 探测字段</button>
-            <button id="transform-quick" class="primary">🚀 快速编排</button>
-            <span class="badge" id="transform-state">未保存</span>
-          </div>
-        </div>
-
-        <div class="tf-mapping">
-          <!-- 左：可用字段 -->
-          <div class="tf-col tf-left card">
-            <h2>可用字段 <span class="hint">来自上游响应 / 手动添加</span></h2>
-            <div class="tf-addcustom">
-              <input id="tf-custom-path" type="text" placeholder="手动添加字段路径，如 data.id" />
-              <button id="tf-custom-add" class="ghost">＋ 添加</button>
+        <div id="ws-panel-try">
+          <div class="tester">
+            <aside class="card tester-side">
+              <h2>接口测试</h2>
+              <div class="hint" style="margin: -4px 0 12px">逐个调用接口，查看真实响应。请求会真实发往上游服务。</div>
+              <label class="field"><span>来源</span><select id="try-source"></select></label>
+              <label class="field"><span>过滤</span><input id="try-search" type="text" placeholder="名称 / 描述关键词" /></label>
+              <div class="try-list" id="try-list"><div class="empty">加载中…</div></div>
+              <div class="hint try-count" id="try-count"></div>
+            </aside>
+            <div class="tester-main">
+              <div class="card" id="try-detail"><div class="empty">从左侧选择一个接口开始测试</div></div>
             </div>
-            <div id="tf-available" class="tf-available">
-              <div class="empty">点「探测字段」获取上游字段，或在上方手动添加。</div>
+          </div>
+        </div>
+
+        <div id="ws-panel-transform" hidden>
+          <div class="tf-banner">
+            🧭 <b>编排是接入 MCP 前的必要步骤。</b> 选择接口 → 探测字段 → 在右侧编排输出（或一键「快速编排」）→ 保存。所有新增的 API 都需要先完成编排，再对外提供 MCP 工具。
+          </div>
+
+          <div class="tf-topbar card">
+            <div class="tf-selectors">
+              <label class="field"><span>来源</span><select id="transform-source"></select></label>
+              <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（全部接口默认规则）</option></select></label>
             </div>
-            <details class="card scratch-cred-section">
-              <summary>🔑 认证信息</summary>
-              <div class="hint" style="margin: 4px 0 8px">这里是<b>全局凭证库</b>。要到「概览 → 该来源『编辑』→ 复用认证信息」勾选后，接口测试 / MCP / REST 才会自动带上该密钥。</div>
-              <div class="scratch-cred-list" id="scratch-cred-list"></div>
-              <div id="scratch-cred-form" hidden style="margin-top:8px">
-                <label class="field"><span>名称</span><input id="scred-name" type="text" placeholder="mykey" /></label>
-                <label class="field"><span>类型</span>
-                  <select id="scred-type">
-                    <option value="header">请求头</option>
-                    <option value="bearer">Bearer</option>
-                    <option value="basic">Basic</option>
-                  </select>
+            <div class="tf-topactions">
+              <button id="transform-probe" class="ghost">🔍 探测字段</button>
+              <button id="transform-quick" class="primary">🚀 快速编排</button>
+              <span class="badge" id="transform-state">未保存</span>
+            </div>
+          </div>
+
+          <div class="tf-mapping">
+            <!-- 左：可用字段 -->
+            <div class="tf-col tf-left card">
+              <h2>可用字段 <span class="hint">来自上游响应 / 手动添加</span></h2>
+              <div class="tf-addcustom">
+                <input id="tf-custom-path" type="text" placeholder="手动添加字段路径，如 data.id" />
+                <button id="tf-custom-add" class="ghost">＋ 添加</button>
+              </div>
+              <div id="tf-available" class="tf-available">
+                <div class="empty">点「探测字段」获取上游字段，或在上方手动添加。</div>
+              </div>
+            </div>
+
+            <div class="tf-arrow">→</div>
+
+            <!-- 右：编排输出 -->
+            <div class="tf-col tf-right card">
+              <h2>编排输出 <span class="hint">可自定义输出名（明亮）</span></h2>
+              <div id="tf-output" class="tf-output">
+                <div class="empty">从左侧添加字段，或点「快速编排」一键照搬。</div>
+              </div>
+              <div class="tf-output-actions">
+                <button id="tf-add-now" class="ghost">＋ 计算字段（时间）</button>
+                <button id="tf-add-constant" class="ghost">＋ 固定值</button>
+                <button id="tf-add-text" class="ghost">＋ 模板文本</button>
+              </div>
+              <div class="tf-options">
+                <label class="field"><span>数据根路径（留空 = 整个响应）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
+                <span class="checkline"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tf-footer card">
+            <div class="tf-footer-actions">
+              <button class="primary" id="transform-save">保存编排</button>
+              <button class="danger" id="transform-delete">删除编排</button>
+              <span class="sub" id="transform-status"></span>
+            </div>
+            <div class="result" id="transform-result"></div>
+            <div class="tf-preview">
+              <div class="tf-preview-pane">
+                <label class="field">
+                  <span>示例响应</span>
+                  <textarea id="transform-sample">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
                 </label>
-                <label class="field" id="scred-key-wrap"><span>请求头名</span><input id="scred-key" type="text" placeholder="X-Api-Key" /></label>
-                <label class="field"><span>值</span><input id="scred-value" type="password" placeholder="密钥/token" /></label>
-                <div id="scred-basic-wrap" hidden>
-                  <label class="field"><span>用户名</span><input id="scred-username" type="text" /></label>
-                  <label class="field"><span>密码</span><input id="scred-password" type="password" /></label>
-                </div>
-                <div class="form-actions" style="margin-top:4px">
-                  <button class="primary" id="scred-save">保存</button>
-                  <button class="ghost" id="scred-cancel">取消</button>
+                <div class="form-actions">
+                  <button id="transform-grab">抓真实响应</button>
+                  <button id="transform-preview-btn">预览</button>
                 </div>
               </div>
-              <div class="form-actions" style="margin-top:8px">
-                <button id="scratch-cred-add" class="ghost">添加</button>
-                <button id="scratch-cred-refresh" class="ghost">刷新</button>
+              <div class="tf-preview-pane">
+                <label class="field">
+                  <span>预览结果</span>
+                  <textarea id="transform-preview" readonly></textarea>
+                </label>
               </div>
-            </details>
-          </div>
-
-          <div class="tf-arrow">→</div>
-
-          <!-- 右：编排输出 -->
-          <div class="tf-col tf-right card">
-            <h2>编排输出 <span class="hint">可自定义输出名（明亮）</span></h2>
-            <div id="tf-output" class="tf-output">
-              <div class="empty">从左侧添加字段，或点「快速编排」一键照搬。</div>
-            </div>
-            <div class="tf-output-actions">
-              <button id="tf-add-now" class="ghost">＋ 计算字段（时间）</button>
-              <button id="tf-add-constant" class="ghost">＋ 固定值</button>
-              <button id="tf-add-text" class="ghost">＋ 模板文本</button>
-            </div>
-            <div class="tf-options">
-              <label class="field"><span>数据根路径（留空 = 整个响应）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
-              <span class="checkline"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tf-footer card">
-          <div class="tf-footer-actions">
-            <button class="primary" id="transform-save">保存编排</button>
-            <button class="danger" id="transform-delete">删除编排</button>
-            <span class="sub" id="transform-status"></span>
-          </div>
-          <div class="result" id="transform-result"></div>
-          <div class="tf-preview">
-            <div class="tf-preview-pane">
-              <label class="field">
-                <span>示例响应</span>
-                <textarea id="transform-sample">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
-              </label>
-              <div class="form-actions">
-                <button id="transform-grab">抓真实响应</button>
-                <button id="transform-preview-btn">预览</button>
-              </div>
-            </div>
-            <div class="tf-preview-pane">
-              <label class="field">
-                <span>预览结果</span>
-                <textarea id="transform-preview" readonly></textarea>
-              </label>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ================= 添加来源 ================= -->
-      <section id="tab-add" hidden>
+      <!-- ================= 来源（MCP / OpenAPI / JSON 导入 + 全局凭证） ================= -->
+      <section id="tab-sources" hidden>
         <div class="seg" id="add-seg">
           <button data-kind="mcp" class="active">MCP Server → API</button>
           <button data-kind="api">OpenAPI 服务 → MCP</button>
+          <button data-kind="json">JSON 导入</button>
         </div>
 
-        <div class="grid cols-2">
-          <!-- MCP 表单 -->
-          <div class="card" id="form-mcp">
+        <!-- MCP 表单 -->
+        <div class="card" id="form-mcp">
             <h2>添加 MCP Server</h2>
             <div class="hint">接入一个 MCP Server，网关会把它的每个工具同时映射成 REST 接口和 MCP 工具。</div>
 
@@ -563,7 +538,7 @@
           </div>
 
           <!-- OpenAPI 表单 -->
-          <div class="card" id="form-api">
+          <div class="card" id="form-api" hidden>
             <h2>添加 OpenAPI 服务</h2>
             <div class="hint">读取 OpenAPI 3.x 或 Swagger 2.0 文档（Swagger 2.0 自动转换），把每个 operation 变成 MCP 工具。</div>
             <div class="presets">
@@ -624,7 +599,56 @@
             </div>
             <div class="result" id="api-result"></div>
           </div>
-        </div>
+
+          <!-- JSON 导入 -->
+          <div class="card" id="form-json" hidden>
+            <h2>从 JSON 导入来源</h2>
+            <div class="hint">
+              支持：单个来源 <code>{ "type": "mcp" | "api", ... }</code>、批量
+              <code>{ "mcpServers": [...], "apis": [...] }</code>，以及 MCP 客户端配置
+              <code>{ "mcpServers": { "name": { "command": "npx", ... } } }</code>（可直接粘贴 Claude Desktop / Cursor 的配置）。
+            </div>
+            <textarea id="import-text" style="min-height: 300px" placeholder='{ "mcpServers": { "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"] } } }'></textarea>
+            <div class="form-actions">
+              <button class="primary" id="import-run">解析并导入</button>
+              <button id="import-test">仅测试（不保存）</button>
+              <button class="ghost" id="import-example">填入示例</button>
+            </div>
+            <div class="result" id="import-result"></div>
+          </div>
+
+          <!-- 全局凭证（认证信息） -->
+          <details class="card scratch-cred-section" id="global-credentials" style="margin-top: 16px">
+            <summary>🔑 全局凭证（认证信息）</summary>
+            <div class="hint" style="margin: 4px 0 8px">
+              这是<b>所有来源共用的凭证库</b>。新建后，在上方对应来源表单的「复用认证信息」里勾选，MCP / REST / 接口测试才会自动带上；也可以在来源表单的「鉴权凭证」里按文档方案名直接填。
+            </div>
+            <div class="scratch-cred-list" id="scratch-cred-list"></div>
+            <div id="scratch-cred-form" hidden style="margin-top:8px">
+              <label class="field"><span>名称</span><input id="scred-name" type="text" placeholder="mykey" /></label>
+              <label class="field"><span>类型</span>
+                <select id="scred-type">
+                  <option value="header">请求头</option>
+                  <option value="bearer">Bearer</option>
+                  <option value="basic">Basic</option>
+                </select>
+              </label>
+              <label class="field" id="scred-key-wrap"><span>请求头名</span><input id="scred-key" type="text" placeholder="X-Api-Key" /></label>
+              <label class="field"><span>值</span><input id="scred-value" type="password" placeholder="密钥/token" /></label>
+              <div id="scred-basic-wrap" hidden>
+                <label class="field"><span>用户名</span><input id="scred-username" type="text" /></label>
+                <label class="field"><span>密码</span><input id="scred-password" type="password" /></label>
+              </div>
+              <div class="form-actions" style="margin-top:4px">
+                <button class="primary" id="scred-save">保存</button>
+                <button class="ghost" id="scred-cancel">取消</button>
+              </div>
+            </div>
+            <div class="form-actions" style="margin-top:8px">
+              <button id="scratch-cred-add" class="ghost">添加</button>
+              <button id="scratch-cred-refresh" class="ghost">刷新</button>
+            </div>
+          </details>
       </section>
 
       <!-- ================= 提示词 ================= -->
@@ -664,7 +688,7 @@
               <h2>③ 让 AI 帮我生成「新增 MCP 来源」配置</h2>
               <button class="primary" data-copy="add-mcp">复制</button>
             </div>
-            <div class="hint">把需求填进去，生成的 JSON 可直接粘到「JSON 导入」页。</div>
+            <div class="hint">把需求填进去，生成的 JSON 可直接粘到「来源 → JSON 导入」。</div>
             <div class="inline-fields">
               <label class="field"><span>名称</span><input id="hint-mcp-name" type="text" placeholder="my-server" /></label>
               <label class="field"><span>启动命令 / 地址</span><input id="hint-mcp-target" type="text" placeholder="npx -y @scope/server" /></label>
@@ -689,24 +713,6 @@
         </div>
       </section>
 
-      <!-- ================= JSON 导入 ================= -->
-      <section id="tab-import" hidden>
-        <div class="card">
-          <h2>从 JSON 导入来源</h2>
-          <div class="hint">
-            支持：单个来源 <code>{ "type": "mcp" | "api", ... }</code>、批量
-            <code>{ "mcpServers": [...], "apis": [...] }</code>，以及 MCP 客户端配置
-            <code>{ "mcpServers": { "name": { "command": "npx", ... } } }</code>（可直接粘贴 Claude Desktop / Cursor 的配置）。
-          </div>
-          <textarea id="import-text" style="min-height: 300px" placeholder='{ "mcpServers": { "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"] } } }'></textarea>
-          <div class="form-actions">
-            <button class="primary" id="import-run">解析并导入</button>
-            <button id="import-test">仅测试（不保存）</button>
-            <button class="ghost" id="import-example">填入示例</button>
-          </div>
-          <div class="result" id="import-result"></div>
-        </div>
-      </section>
     </main>
 
     <div class="toast" id="toast"></div>
@@ -848,16 +854,32 @@
         }
 
         // ---------------- tabs ----------------
+        const wsState = { panel: "try" };
+
+        function showWorkspacePanel(panel) {
+          wsState.panel = panel === "transform" ? "transform" : "try";
+          document.querySelectorAll("#ws-seg button").forEach((other) => other.classList.toggle("active", other.dataset.ws === wsState.panel));
+          $("ws-panel-try").hidden = wsState.panel !== "try";
+          $("ws-panel-transform").hidden = wsState.panel !== "transform";
+          if (wsState.panel === "try") initTester();
+          else initTransforms();
+        }
+
+        document.querySelectorAll("#ws-seg button").forEach((button) => {
+          button.addEventListener("click", () => showWorkspacePanel(button.dataset.ws));
+        });
+
         document.querySelectorAll("nav.tabs button").forEach((button) => {
           button.addEventListener("click", () => {
             document.querySelectorAll("nav.tabs button").forEach((other) => other.classList.toggle("active", other === button));
             for (const section of document.querySelectorAll("main > section")) {
               section.hidden = section.id !== `tab-${button.dataset.tab}`;
             }
-            if (button.dataset.tab === "prompt") loadPrompts();
-            if (button.dataset.tab === "overview") loadOverview();
-            if (button.dataset.tab === "try") initTester();
-            if (button.dataset.tab === "transform") initTransforms();
+            const tab = button.dataset.tab;
+            if (tab === "prompt") loadPrompts();
+            if (tab === "overview") loadOverview();
+            if (tab === "sources") loadCredentials();
+            if (tab === "workspace") showWorkspacePanel(wsState.panel);
           });
         });
 
@@ -877,7 +899,7 @@
             const cell = document.createElement("td");
             cell.colSpan = 7;
             cell.className = "empty";
-            cell.textContent = "还没有来源。去「添加来源」接入第一个 MCP Server 或 OpenAPI 服务吧。";
+            cell.textContent = "还没有来源。去「来源」接入第一个 MCP Server 或 OpenAPI 服务吧。";
             row.appendChild(cell);
             tbody.appendChild(row);
             return;
@@ -888,6 +910,9 @@
             const nameCell = document.createElement("td");
             nameCell.className = "name-cell";
             nameCell.textContent = source.name;
+            nameCell.title = "点击打开工作台";
+            nameCell.style.cursor = "pointer";
+            nameCell.addEventListener("click", () => openWorkspace(source));
             row.appendChild(nameCell);
 
             const typeCell = document.createElement("td");
@@ -927,36 +952,18 @@
             const actions = document.createElement("div");
             actions.className = "row-actions";
 
-            const testButton = document.createElement("button");
-            testButton.textContent = "测试";
-            testButton.addEventListener("click", () => testExisting(source, testButton));
-            actions.appendChild(testButton);
-
-            const tryButton = document.createElement("button");
-            tryButton.textContent = "接口";
-            tryButton.title = "逐项测试该来源的每个接口";
-            tryButton.addEventListener("click", () => openTester(source.name));
-            actions.appendChild(tryButton);
-
-            const transformButton = document.createElement("button");
-            transformButton.textContent = "编排";
-            transformButton.title = "调整该来源接口返回的数据";
-            transformButton.addEventListener("click", () => openTransform(source.name));
-            actions.appendChild(transformButton);
+            const openButton = document.createElement("button");
+            openButton.className = "primary";
+            openButton.textContent = "打开";
+            openButton.title = "进入工作台：测试接口 / 编排数据";
+            openButton.addEventListener("click", () => openWorkspace(source));
+            actions.appendChild(openButton);
 
             const editButton = document.createElement("button");
             editButton.textContent = "编辑";
+            editButton.title = "修改该来源的配置";
             editButton.addEventListener("click", () => editSource(source));
             actions.appendChild(editButton);
-
-            const promptButton = document.createElement("button");
-            promptButton.textContent = "提示词";
-            promptButton.addEventListener("click", () => {
-              const select = $("prompt-source");
-              select.value = source.name;
-              document.querySelector('nav.tabs button[data-tab="prompt"]').click();
-            });
-            actions.appendChild(promptButton);
 
             const deleteButton = document.createElement("button");
             deleteButton.className = "danger";
@@ -1028,7 +1035,8 @@
 
         function openTester(name) {
           tryState.pendingSource = name;
-          document.querySelector('nav.tabs button[data-tab="try"]').click();
+          wsState.panel = "try";
+          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
         }
 
         async function initTester() {
@@ -1037,7 +1045,7 @@
           const wanted = tryState.pendingSource || $("try-source").value || (state.sources[0] ? state.sources[0].name : "");
           tryState.pendingSource = "";
           if (!wanted) {
-            $("try-list").innerHTML = '<div class="empty">还没有来源，先去「添加来源」接入一个</div>';
+            $("try-list").innerHTML = '<div class="empty">还没有来源，先去「来源」接入一个</div>';
             $("try-count").textContent = "";
             return;
           }
@@ -1638,7 +1646,7 @@
               : (data.config.apis || []).find((item) => item.name === source.name);
             if (!entry) throw new Error("找不到该来源的配置");
             state.editing = { kind: source.kind, name: source.name };
-            document.querySelector('nav.tabs button[data-tab="add"]').click();
+            document.querySelector('nav.tabs button[data-tab="sources"]').click();
             if (source.kind === "mcp") {
               switchAddKind("mcp");
               fillMcpForm(entry);
@@ -1664,8 +1672,9 @@
         // ---------------- add: shared ----------------
         function switchAddKind(kind) {
           document.querySelectorAll("#add-seg button").forEach((button) => button.classList.toggle("active", button.dataset.kind === kind));
-          $("form-mcp").style.display = kind === "mcp" ? "" : "none";
-          $("form-api").style.display = kind === "api" ? "" : "none";
+          $("form-mcp").hidden = kind !== "mcp";
+          $("form-api").hidden = kind !== "api";
+          $("form-json").hidden = kind !== "json";
         }
         document.querySelectorAll("#add-seg button").forEach((button) => {
           button.addEventListener("click", () => switchAddKind(button.dataset.kind));
@@ -1912,6 +1921,7 @@
             if (!preset) return;
             state.editing = { kind: null, name: null };
             updateModeLabels();
+            switchAddKind("api");
             fillApiForm(preset);
             $("api-save").textContent = "保存并上线";
           });
@@ -2099,7 +2109,7 @@
           if (!credState.credentials.length) {
             const span = document.createElement("span");
             span.className = "sub";
-            span.textContent = "还没有认证信息，可在「编排」页添加后再引用。";
+            span.textContent = "还没有认证信息，可在「来源」页的「全局凭证」里添加后再引用。";
             box.appendChild(span);
             return;
           }
@@ -2437,7 +2447,17 @@
 
         function openTransform(source) {
           tfState.pending = { source, tool: "*" };
-          document.querySelector('nav.tabs button[data-tab="transform"]').click();
+          wsState.panel = "transform";
+          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
+        }
+
+        /** 从概览「打开」进入工作台；未编排的 API 直接落到「编排」面板。 */
+        function openWorkspace(source) {
+          const panel = source.kind === "api" && !isOrchestrated(source.name) ? "transform" : "try";
+          tryState.pendingSource = source.name;
+          tfState.pending = { source: source.name, tool: "*" };
+          wsState.panel = panel;
+          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
         }
 
         /**
@@ -2446,9 +2466,10 @@
          * 疯狂请求上游；首个接口编排保存成功后概览的「已编排」徽章即变绿。
          */
         async function autoOrchestrateAfterAdd(sourceName) {
-          // 跳到编排页并等初始化（加载已保存编排 / 填充来源下拉）完成，避免与 initTransforms 抢改 UI 状态
+          // 跳到工作台「编排」并等初始化（加载已保存编排 / 填充来源下拉）完成，避免与 initTransforms 抢改 UI 状态
           tfState.pending = null;
-          document.querySelector('nav.tabs button[data-tab="transform"]').click();
+          wsState.panel = "transform";
+          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
           await _initPromise;
           await loadTransformTools(sourceName);
           const tools = tfState.tools;
@@ -2469,7 +2490,7 @@
           $("transform-tool").value = "*";
           tfState.tool = "*";
           loadTransformEditor(sourceName, "*");
-          toast(`已为「${sourceName}」自动快速编排 ${done} 个接口（原样照搬，可在编排页微调）`, "ok");
+          toast(`已为「${sourceName}」自动快速编排 ${done} 个接口（原样照搬，可在工作台「编排」微调）`, "ok");
         }
 
         function setTransformState(st) {
@@ -2607,7 +2628,7 @@
           _initPromise = (async () => {
             try { await refreshTransformSaved(); } catch (error) { toast(`加载编排失败：${error.message}`, "err"); }
             if (!state.sources.length) {
-              $("tf-available").innerHTML = '<div class="empty">还没有来源，先去「添加来源」接入一个。</div>';
+              $("tf-available").innerHTML = '<div class="empty">还没有来源，先去「来源」接入一个。</div>';
               return;
             }
             const pending = tfState.pending;
@@ -2867,6 +2888,7 @@
           $("token").placeholder = "需要管理员 Token";
         }
         addSecurityRow();
+        switchAddKind("mcp");
         $("mcp-transport").dispatchEvent(new Event("change"));
         loadOverview();
         loadCredentials();

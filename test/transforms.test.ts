@@ -207,6 +207,9 @@ test("normalizeTransform validates operators and required fields", () => {
   assert.throws(() => normalizeTransform({ blocks: [{ op: "each", as: "x", blocks: [] }] }), /缺少 "from"/);
 
   assert.throws(() => normalizeTransform({ blocks: [] }), /至少需要一个积木块/);
+  // A passthrough-only config (no blocks) is valid and returns the payload unchanged.
+  assert.deepEqual(normalizeTransform({ passthrough: true, blocks: [] }), { passthrough: true, blocks: [] });
+  assert.deepEqual(applyTransform({ passthrough: true, blocks: [] }, { a: 1, b: 2 }).value, { a: 1, b: 2 });
   assert.throws(() => normalizeTransform({ blocks: [{ op: "nope" }] }), /不支持/);
   assert.throws(() => normalizeTransform({ blocks: [{ op: "text" }] }), /缺少 "as"/);
   assert.throws(() => normalizeTransform({ blocks: [{ op: "now", as: "t", format: "week" }] }), /format/);
