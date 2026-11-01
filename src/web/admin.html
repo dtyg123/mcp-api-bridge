@@ -150,10 +150,7 @@
 
       .form-actions { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
 
-      .presets { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin: 4px 0 14px; }
-      .presets span { font-size: 12px; color: var(--muted); }
-      .presets button { border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); border-radius: 999px; padding: 4px 11px; font-size: 12px; }
-      .presets button:hover { border-color: var(--accent); color: var(--accent); }
+
       .result { margin-top: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-soft); padding: 10px 12px; font-size: 12.5px; display: none; }
       .result.show { display: block; }
       .result.ok { border-color: rgba(53,211,154,0.35); }
@@ -363,11 +360,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>来源</th><th>编排</th><th>操作</th>
+                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>编排</th><th>操作</th>
                 </tr>
               </thead>
               <tbody id="source-rows">
-                <tr><td colspan="7" class="empty">加载中…</td></tr>
+                <tr><td colspan="6" class="empty">加载中…</td></tr>
               </tbody>
             </table>
           </div>
@@ -540,12 +537,7 @@
           <!-- OpenAPI 表单 -->
           <div class="card" id="form-api" hidden>
             <h2>添加 OpenAPI 服务</h2>
-            <div class="hint">读取 OpenAPI 3.x 或 Swagger 2.0 文档（Swagger 2.0 自动转换），把每个 operation 变成 MCP 工具。</div>
-            <div class="presets">
-              <span>快速填充</span>
-              <button type="button" data-preset="rainyun">雨云 API（Swagger 2.0）</button>
-              <button type="button" data-preset="petstore">Petstore</button>
-            </div>
+            <div class="hint">读取 OpenAPI 3.x 或 Swagger 2.0 文档（Swagger 2.0 自动转换），把每个 operation 变成 MCP 工具。填好下面的「文档地址」即可快速添加。</div>
 
             <div class="two-col">
               <label class="field"><span>名称 <em>*</em>（用于 URL，字母/数字/._-）</span><input id="api-name" type="text" placeholder="petstore" /></label>
@@ -904,7 +896,7 @@
           if (!sources.length) {
             const row = document.createElement("tr");
             const cell = document.createElement("td");
-            cell.colSpan = 7;
+            cell.colSpan = 6;
             cell.className = "empty";
             cell.textContent = "还没有来源。去「来源」接入第一个 MCP Server 或 OpenAPI 服务吧。";
             row.appendChild(cell);
@@ -940,13 +932,6 @@
             const toolsCell = document.createElement("td");
             toolsCell.textContent = String(source.toolCount ?? 0);
             row.appendChild(toolsCell);
-
-            const originCell = document.createElement("td");
-            originCell.appendChild(badge(source.managed ? "管理台" : "配置文件", source.managed ? "mcp" : ""));
-            if (source.error) {
-              originCell.title = source.error;
-            }
-            row.appendChild(originCell);
 
             const orchestrated = isOrchestrated(source.name);
             const orchCell = document.createElement("td");
@@ -1606,7 +1591,7 @@
             fillSourceSelect(state.sources);
             fillTrySources(state.sources);
           } catch (error) {
-            $("source-rows").innerHTML = '<tr><td colspan="7" class="empty">无法加载来源列表</td></tr>';
+            $("source-rows").innerHTML = '<tr><td colspan="6" class="empty">无法加载来源列表</td></tr>';
             setResult("source-error", false, error.message || "加载失败", [
               error.status === 401 ? "请在上方输入管理员 Token 后点「保存 Token」。" : "请检查服务是否正常运行。",
             ]);
@@ -1917,31 +1902,6 @@
           clearResult("api-result");
           $("api-save").textContent = state.editing.name && state.editing.kind === "api" ? "更新来源" : "保存并上线";
         }
-
-        const API_PRESETS = {
-          rainyun: {
-            name: "rainyun",
-            description: "雨云 API（云产品管理，Swagger 2.0）",
-            spec: "https://api.rainyun.com/openapi.json",
-            security: { ApiKey: {} },
-          },
-          petstore: {
-            name: "petstore",
-            description: "宠物商店示例（OpenAPI 3.0）",
-            spec: "https://petstore3.swagger.io/api/v3/openapi.json",
-          },
-        };
-        document.querySelectorAll("[data-preset]").forEach((button) => {
-          button.addEventListener("click", () => {
-            const preset = API_PRESETS[button.dataset.preset];
-            if (!preset) return;
-            state.editing = { kind: null, name: null };
-            updateModeLabels();
-            switchAddKind("api");
-            fillApiForm(preset);
-            $("api-save").textContent = "保存并上线";
-          });
-        });
 
         $("api-clear").addEventListener("click", () => {
           state.editing = { kind: null, name: null };
