@@ -1786,8 +1786,8 @@
             updateModeLabels();
             $("mcp-save").textContent = "保存并上线";
             await loadOverview();
-            toast(`「${result.name}」已上线，现在去「编排」完成字段映射后再对外提供 MCP 工具。`, "ok");
-            openTransform(result.name);
+            toast(`「${result.name}」已上线，正在自动为各接口生成字段编排…`, "ok");
+            autoOrchestrateAfterAdd(result.name);
           } catch (error) {
             setResult("mcp-result", false, error.message || "保存失败", []);
           } finally {
@@ -1973,8 +1973,8 @@
             updateModeLabels();
             $("api-save").textContent = "保存并上线";
             await loadOverview();
-            toast(`「${result.name}」已上线，现在去「编排」完成字段映射后再对外提供 MCP 工具。`, "ok");
-            openTransform(result.name);
+            toast(`「${result.name}」已上线，正在自动为各接口生成字段编排…`, "ok");
+            autoOrchestrateAfterAdd(result.name);
           } catch (error) {
             setResult("api-result", false, error.message || "保存失败", []);
           } finally {
@@ -2436,6 +2436,38 @@
           document.querySelector('nav.tabs button[data-tab="transform"]').click();
         }
 
+        /**
+         * 添加来源成功后自动完成一次编排：跳到编排页，逐个接口探测字段并「快速编排」后保存。
+         * 对探测失败（需要参数的接口）兜底开启「保留原字段」。最多处理 30 个接口，避免对大源（如雨云 217 个）
+         * 疯狂请求上游；首个接口编排保存成功后概览的「已编排」徽章即变绿。
+         */
+        async function autoOrchestrateAfterAdd(sourceName) {
+          // 跳到编排页并等初始化（加载已保存编排 / 填充来源下拉）完成，避免与 initTransforms 抢改 UI 状态
+          tfState.pending = null;
+          document.querySelector('nav.tabs button[data-tab="transform"]').click();
+          await _initPromise;
+          await loadTransformTools(sourceName);
+          const tools = tfState.tools;
+          const limit = Math.min(tools.length, 30);
+          let done = 0;
+          for (let i = 0; i < limit; i++) {
+            const toolName = tools[i].name;
+            $("transform-source").value = sourceName;
+            $("transform-tool").value = toolName;
+            tfState.source = sourceName;
+            tfState.tool = toolName;
+            await probeFields(true);
+            quickOrchestrate(true);
+            await saveTransform(true);
+            done++;
+          }
+          // 收尾：回到默认规则视图，让用户看到整体状态
+          $("transform-tool").value = "*";
+          tfState.tool = "*";
+          loadTransformEditor(sourceName, "*");
+          toast(`已为「${sourceName}」自动快速编排 ${done} 个接口（原样照搬，可在编排页微调）`, "ok");
+        }
+
         function setTransformState(st) {
           const labels = { saved: ["已保存", "ok"], dirty: ["未保存", "err"], fresh: ["新建", ""] };
           const [text, kind] = labels[st] || labels.fresh;
@@ -2445,15 +2477,16 @@
         }
 
         // ===== 探测 / 快速编排 / 预览 =====
-        async function probeFields() {
+        async function probeFields(silent = false) {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
-          if (!source) { toast("先选择来源", "err"); return; }
+          if (!source) { if (!silent) toast("先选择来源", "err"); return; }
           const src = state.sources.find((s) => s.name === source);
-          if (!src) { toast("来源不存在", "err"); return; }
+          if (!src) { if (!silent) toast("来源不存在", "err"); return; }
           const kind = sourceKind(src);
           const btn = $("transform-probe");
           btn.disabled = true; btn.textContent = "探测中…";
+          tfState.available = []; // 重置，避免失败时沿用上一个接口的字段
           try {
             const data = await api(`/sources/${kind}/${encodeURIComponent(source)}/discover?tool=${encodeURIComponent(tool)}`);
             if (data.fields && data.fields.length) {
@@ -2462,24 +2495,24 @@
                 $("transform-sample").value = JSON.stringify(data.sample, null, 2);
               }
               renderAvailable();
-              toast(`发现 ${data.fields.length} 个字段`, "ok");
+              if (!silent) toast(`发现 ${data.fields.length} 个字段`, "ok");
             } else {
               tfState.available = [];
               renderAvailable();
-              toast(data.note || "没有发现字段，可手动添加", data.note ? "" : "err");
+              if (!silent) toast(data.note || "没有发现字段，可手动添加", data.note ? "" : "err");
             }
           } catch (error) {
-            toast(`探测失败：${error.message}`, "err");
+            if (!silent) toast(`探测失败：${error.message}`, "err");
           } finally {
             btn.disabled = false; btn.textContent = "🔍 探测字段";
           }
         }
 
-        function quickOrchestrate() {
+        function quickOrchestrate(silent = false) {
           if (!tfState.available.length) {
             $("transform-passthrough").checked = true;
             markDirty();
-            toast("未探测到字段，已开启「原样输出」。建议先探测。", "");
+            if (!silent) toast("未探测到字段，已开启「原样输出」。建议先探测。", "");
             return;
           }
           const box = $("tf-output");
@@ -2489,7 +2522,7 @@
             box.appendChild(buildOutputRow({ kind: "field", from: field.path, as: defaultNameOf(field.path) }));
           }
           markDirty();
-          toast(`已快速编排 ${tfState.available.length} 个字段（原样照搬，可再自定义输出名）`, "ok");
+          if (!silent) toast(`已快速编排 ${tfState.available.length} 个字段（原样照搬，可再自定义输出名）`, "ok");
         }
 
         async function previewTransform() {
@@ -2528,10 +2561,10 @@
           return tfState.saved.some((e) => e.source === sourceName);
         }
 
-        async function saveTransform() {
+        async function saveTransform(silent = false) {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
-          if (!source) { toast("请先选择来源", "err"); return; }
+          if (!source) { if (!silent) toast("请先选择来源", "err"); return; }
           const config = collectTransformConfig();
           if (!config.blocks.length && !config.passthrough) {
             setResult("transform-result", false, "至少需要一个输出字段，或开启「保留原字段」。", []);
@@ -2541,7 +2574,7 @@
           btn.disabled = true; btn.textContent = "保存中…";
           try {
             await api("/transforms", { method: "PUT", body: JSON.stringify({ source, tool, config }) });
-            toast(`已保存 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排`, "ok");
+            if (!silent) toast(`已保存 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排`, "ok");
             await refreshTransformSaved();
             loadTransformEditor(source, tool);
           } catch (error) {
@@ -2565,19 +2598,23 @@
           }
         }
 
-        async function initTransforms() {
-          try { await refreshTransformSaved(); } catch (error) { toast(`加载编排失败：${error.message}`, "err"); }
-          if (!state.sources.length) {
-            $("tf-available").innerHTML = '<div class="empty">还没有来源，先去「添加来源」接入一个。</div>';
-            return;
-          }
-          const pending = tfState.pending;
-          tfState.pending = null;
-          if (tfState.initialized && !pending) return;
-          tfState.initialized = true;
-          fillTransformSources();
-          const source = pending ? pending.source : tfState.source;
-          await selectTransformTarget(source, pending ? pending.tool : "*");
+        let _initPromise = Promise.resolve();
+        function initTransforms() {
+          _initPromise = (async () => {
+            try { await refreshTransformSaved(); } catch (error) { toast(`加载编排失败：${error.message}`, "err"); }
+            if (!state.sources.length) {
+              $("tf-available").innerHTML = '<div class="empty">还没有来源，先去「添加来源」接入一个。</div>';
+              return;
+            }
+            const pending = tfState.pending;
+            tfState.pending = null;
+            if (tfState.initialized && !pending) return;
+            tfState.initialized = true;
+            fillTransformSources();
+            const source = pending ? pending.source : tfState.source;
+            await selectTransformTarget(source, pending ? pending.tool : "*");
+          })();
+          return _initPromise;
         }
 
         // ===== 事件绑定 =====
