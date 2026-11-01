@@ -558,8 +558,7 @@ test("the spec-schemes endpoint exposes security header names", async () => {
   assert.equal(res.json.ok, true);
   const scheme = (res.json.schemes || []).find((item: any) => item.name === "ApiKeyAuth");
   assert.ok(scheme, "ApiKeyAuth scheme is present");
-  assert.equal(scheme.type, "apiKey");
-  assert.equal(scheme.in, "header");
+  assert.equal(scheme.credentialType, "header");
   assert.equal(scheme.headerName, "x-api-key");
 });
 

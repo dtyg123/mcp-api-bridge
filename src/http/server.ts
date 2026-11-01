@@ -881,21 +881,17 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       const result = Object.entries(schemes).map(([name, raw]) => {
         const scheme = isPlainObject(raw) ? raw : {};
         const type = typeof scheme.type === "string" ? scheme.type : "";
-        const httpScheme = typeof scheme.scheme === "string" ? scheme.scheme.toLowerCase() : "";
         const headerName =
-          type === "apiKey" && typeof scheme.name === "string"
-            ? scheme.name
-            : type === "http" || type === "oauth2" || type === "openIdConnect"
+          type === "apiKey"
+            ? scheme.in === "header"
+              ? String(scheme.name ?? "")
+              : ""
+            : ["http", "oauth2", "openIdConnect"].includes(type)
               ? "Authorization"
               : "";
-        return {
-          name,
-          type,
-          in: typeof scheme.in === "string" ? scheme.in : undefined,
-          httpScheme: httpScheme || undefined,
-          headerName,
-          description: typeof scheme.description === "string" ? scheme.description : undefined,
-        };
+        const credentialType =
+          headerName === "Authorization" ? (String(scheme.scheme).toLowerCase() === "basic" ? "basic" : "bearer") : "header";
+        return { name, headerName, credentialType };
       });
       res.json({ ok: true, convertedFromSwagger2: loaded.convertedFromSwagger2, schemes: result });
     } catch (error) {

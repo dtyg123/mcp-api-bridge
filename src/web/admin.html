@@ -224,8 +224,6 @@
       details.adv { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
       details.adv summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
       details.adv[open] summary { margin-bottom: 10px; }
-      .kv-row { display: grid; grid-template-columns: 1fr 1.6fr 0.9fr 0.9fr auto; gap: 8px; margin-bottom: 8px; }
-      .kv-row input { padding: 6px 9px; font-size: 12.5px; }
       .linkbtn { background: none; border: none; color: var(--accent); padding: 0; font-size: 12.5px; }
       .linkbtn:hover { text-decoration: underline; }
       /* ---- Scratch-like block editor ---- */
@@ -318,7 +316,6 @@
       @media (max-width: 720px) {
         header { flex-wrap: wrap; }
         .header-fields { width: 100%; }
-        .kv-row { grid-template-columns: 1fr 1fr; }
       }
     </style>
   </head>
@@ -1023,12 +1020,6 @@
           if (current && sources.some((source) => source.name === current)) select.value = current;
         }
 
-        function openTester(name) {
-          tryState.pendingSource = name;
-          wsState.panel = "try";
-          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
-        }
-
         async function initTester() {
           if (!state.sources.length) await loadOverview();
           fillTrySources(state.sources);
@@ -1662,25 +1653,6 @@
           return state.sources.find((source) => source.name === name);
         }
 
-        async function testExisting(source, button) {
-          button.disabled = true;
-          button.textContent = "测试中…";
-          try {
-            const data = await api("/sources");
-            const entry = source.kind === "mcp"
-              ? (data.config.mcpServers || []).find((item) => item.name === source.name)
-              : (data.config.apis || []).find((item) => item.name === source.name);
-            if (!entry) throw new Error("找不到该来源的配置");
-            const result = await api("/test", { method: "POST", body: JSON.stringify({ kind: source.kind, entry }) });
-            toast(`「${source.name}」连接正常，发现 ${result.toolCount} 个工具`, "ok");
-          } catch (error) {
-            toast(`「${source.name}」测试失败：${error.message}`, "err");
-          } finally {
-            button.disabled = false;
-            button.textContent = "测试";
-          }
-        }
-
         async function deleteSource(source) {
           const hint = source.managed
             ? "该操作只移除管理台里的记录。"
@@ -2108,17 +2080,11 @@
               return;
             }
             const scheme = schemes.find((item) => item.headerName) || schemes[0];
-            const headerName = scheme.headerName || "";
             $("scred-name").value = scheme.name || "credential";
-            $("scred-type").value =
-              headerName === "Authorization"
-                ? String(scheme.httpScheme || "").toLowerCase() === "basic"
-                  ? "basic"
-                  : "bearer"
-                : "header";
+            $("scred-type").value = scheme.credentialType || "header";
             $("scred-type").dispatchEvent(new Event("change"));
-            $("scred-key").value = headerName || "";
-            toast(`已按文档方案「${scheme.name}」填入${headerName ? `请求头名 ${headerName}` : "（Authorization）"}`, "ok");
+            $("scred-key").value = scheme.headerName || "";
+            toast(`已按文档方案「${scheme.name}」填入${scheme.headerName ? `请求头名 ${scheme.headerName}` : "（Authorization）"}`, "ok");
           } catch (error) {
             toast(`读取文档方案失败：${error.message}`, "err");
           } finally {
@@ -2492,12 +2458,6 @@
           $("transform-tool").value = tool;
           tfState.tool = $("transform-tool").value;
           loadTransformEditor(source, tfState.tool);
-        }
-
-        function openTransform(source) {
-          tfState.pending = { source, tool: "*" };
-          wsState.panel = "transform";
-          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
         }
 
         /** 从概览「打开」进入工作台；未编排的 API 直接落到「编排」面板。 */
