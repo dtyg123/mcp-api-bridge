@@ -1443,7 +1443,7 @@
           return args;
         }
 
-        function sampleFor(schema, kind) {
+        function sampleFor(schema, kind, key) {
           const candidates = [
             schema.default,
             Array.isArray(schema.examples) ? schema.examples[0] : undefined,
@@ -1464,7 +1464,10 @@
           if (kind === "object") return "{}";
           if (schema.format === "date") return new Date().toISOString().slice(0, 10);
           if (schema.format === "date-time") return new Date().toISOString();
-          return "string";
+          // 过滤器类参数（如雨云的 options）通常是 JSON 对象字符串，给个可用的空过滤器。
+          if (/^(options|filter)$/i.test(String(key || ""))) return "{}";
+          // 普通字符串没有示例可参考，留空让用户按上游文档填写，避免误发字面量 "string"。
+          return "";
         }
 
         function fillTryExample() {
@@ -1476,12 +1479,18 @@
             toast("该接口没有参数", "");
             return;
           }
+          let blank = 0;
           for (const field of tryState.fields) {
-            const value = sampleFor(field.prop, field.kind);
+            const value = sampleFor(field.prop, field.kind, field.key);
             field.input.value = value;
             tryState.values.set(tryValueKey(field.key), value);
+            if (!value) blank += 1;
           }
-          toast("已填入示例值，发送前请按需修改", "ok");
+          if (blank) {
+            toast(`已填入示例值；${blank} 个字符串参数无可用示例，已留空，请按上游文档填写`, "ok");
+          } else {
+            toast("已填入示例值，发送前请按需修改", "ok");
+          }
         }
 
         async function sendTry() {
