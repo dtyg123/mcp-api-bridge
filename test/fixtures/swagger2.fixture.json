@@ -1,0 +1,155 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Rainyun-shaped API",
+    "description": "Fixture modelled on https://api.rainyun.com/openapi.json",
+    "version": "2.4"
+  },
+  "host": "api.v2.example.com",
+  "basePath": "/v1",
+  "schemes": ["https"],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "security": [{ "ApiKey": [] }],
+  "securityDefinitions": {
+    "ApiKey": {
+      "type": "apiKey",
+      "name": "X-Api-Key",
+      "in": "header",
+      "description": "API key"
+    }
+  },
+  "tags": [{ "name": "domain", "description": "Domain operations" }],
+  "paths": {
+    "/domain/register": {
+      "post": {
+        "tags": ["domain"],
+        "summary": "域名注册",
+        "operationId": "registerDomain",
+        "parameters": [
+          {
+            "name": "param",
+            "in": "body",
+            "required": true,
+            "description": "参数",
+            "schema": { "$ref": "#/definitions/RegisterRequest" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": { "$ref": "#/definitions/RegisterResponse" }
+          }
+        }
+      }
+    },
+    "/domain/certify": {
+      "get": {
+        "tags": ["domain"],
+        "summary": "获取已验证域名列表",
+        "operationId": "listCertifiedDomains",
+        "parameters": [{ "$ref": "#/parameters/Options" }],
+        "responses": {}
+      },
+      "post": {
+        "tags": ["domain"],
+        "summary": "提交域名认证",
+        "operationId": "certifyDomain",
+        "parameters": [
+          {
+            "name": "domains",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": { "type": "string" },
+            "collectionFormat": "pipes"
+          },
+          {
+            "name": "labels",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": { "type": "string" },
+            "collectionFormat": "ssv"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "enum": ["pending", "done"]
+          }
+        ],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/domain/{domainId}/renew": {
+      "post": {
+        "tags": ["domain"],
+        "summary": "续费域名",
+        "operationId": "renewDomain",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "description": "域名 ID",
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "years",
+            "in": "query",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/upload": {
+      "post": {
+        "tags": ["public"],
+        "summary": "上传文件",
+        "operationId": "uploadFile",
+        "consumes": ["multipart/form-data"],
+        "security": [],
+        "parameters": [
+          { "name": "bucket", "in": "formData", "required": true, "type": "string" },
+          { "name": "file", "in": "formData", "required": true, "type": "file" }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  },
+  "parameters": {
+    "Options": {
+      "name": "options",
+      "in": "query",
+      "required": true,
+      "description": "选项",
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "RegisterRequest": {
+      "type": "object",
+      "required": ["domain", "duration", "type"],
+      "properties": {
+        "domain": { "type": "string", "description": "域名" },
+        "duration": { "type": "integer", "format": "int32" },
+        "type": { "type": "string", "enum": ["register", "transfer"] },
+        "template_sys_id": { "type": "integer" }
+      }
+    },
+    "RegisterResponse": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "integer" },
+        "data": { "type": "object" }
+      }
+    }
+  }
+}

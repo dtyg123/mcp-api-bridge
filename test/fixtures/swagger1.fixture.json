@@ -1,0 +1,8 @@
+{
+  "swagger": "1.2",
+  "apiVersion": "1.0.0",
+  "info": { "title": "Legacy API" },
+  "basePath": "https://legacy.example.com",
+  "apis": [{ "path": "/pets", "operations": [] }],
+  "models": {}
+}

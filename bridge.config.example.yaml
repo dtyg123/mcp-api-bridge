@@ -1,0 +1,110 @@
+# =============================================================================
+#  MCP ⇄ API Bridge 配置示例
+#
+#  两个方向可以同时启用：
+#    apis[]       : REST / OpenAPI 服务  ->  暴露成 MCP Server（HTTP / stdio）
+#    mcpServers[] : MCP Server           ->  暴露成 REST / OpenAPI 接口
+#
+#  所有字符串都支持 ${ENV_VAR} 与 ${ENV_VAR:-默认值} 环境变量插值。
+# =============================================================================
+
+server:
+  host: 0.0.0.0
+  port: 8080
+  # 反向代理 / 公网部署时设置，用于生成 /openapi.json 中的 servers[0].url
+  publicBaseUrl: ${PUBLIC_BASE_URL:-}
+  # 所有路由的公共前缀，例如 /bridge；留空表示根路径
+  basePath: ""
+  cors: true
+  bodyLimit: 10mb
+  requestTimeoutMs: 120000
+
+  auth:
+    # 空字符串 = 关闭鉴权。填值后需要 Authorization: Bearer <token>
+    rest: ${BRIDGE_REST_TOKEN:-}   # 保护 /api/**、/openapi.json、/tools
+    mcp: ${BRIDGE_MCP_TOKEN:-}     # 保护 /mcp、/mcp/{source}
+
+  # 保护 /admin 管理台与 /admin/api/**。留空 = 不鉴权（本地使用可以，公网务必设置）
+  adminToken: ${BRIDGE_ADMIN_TOKEN:-}
+
+  # Web 管理台：可视化添加来源、测试连通性、生成接入提示词
+  admin:
+    enabled: true
+    path: /admin
+    # 管理台新增的来源单独存这里，不会改写上面的 YAML
+    storeFile: ${BRIDGE_DATA_DIR:-./data}/managed-sources.json
+    # 管理台里「粘贴 OpenAPI 文档」时保存到的目录
+    specsDir: ${BRIDGE_DATA_DIR:-./data}/specs
+
+  mcp:
+    path: /mcp
+    # stateful：维护 Mcp-Session-Id 会话（默认，兼容性最好）
+    # stateless：每个请求独立，适合无状态负载均衡
+    sessionMode: stateful
+    # true 时用 application/json 返回而非 SSE 流
+    jsonResponse: false
+
+  rest:
+    path: /api
+
+openapi:
+  # /openapi.json 默认输出格式：3.1（JSON Schema 2020-12）或 3.0（兼容性更好）
+  version: "3.1"
+  title: MCP Bridge API
+  description: 由 mcp-api-bridge 依据已注册工具自动生成。
+
+logging:
+  level: ${LOG_LEVEL:-info}   # debug | info | warn | error
+  format: text                # text | json
+
+# =============================================================================
+#  方向二：API / OpenAPI  ->  MCP
+# =============================================================================
+apis:
+  # 公共演示服务（需要外网）。不需要可直接删掉或注释。
+  - name: petstore
+    spec: https://petstore3.swagger.io/api/v3/openapi.json
+    # 可选：覆盖文档里的 servers[0].url
+    baseUrl: https://petstore3.swagger.io/api/v3
+    headers:
+      User-Agent: mcp-api-bridge
+    # 只暴露匹配的操作；{include, exclude} 支持 * 通配符
+    # 匹配对象：`GET /pet/{petId}`、`/pet/{petId}`、operationId
+    include: []
+    exclude: []
+    exposure:
+      rest: true
+      mcp: true
+      prefix: ""
+
+  # 需要鉴权的内部服务示例：
+  # - name: internal
+  #   spec: ./specs/internal.yaml      # 相对路径基于本配置文件所在目录
+  #   security:
+  #     ApiKeyAuth:  { token: ${INTERNAL_API_KEY} }
+  #     BearerAuth:  { token: ${INTERNAL_TOKEN} }
+  #     BasicAuth:   { username: ${INTERNAL_USER}, password: ${INTERNAL_PASS} }
+
+# =============================================================================
+#  方向一：MCP  ->  API / OpenAPI
+# =============================================================================
+mcpServers:
+  # stdio：在本进程内拉起子进程
+  # - name: filesystem
+  #   transport:
+  #     type: stdio
+  #     command: npx
+  #     args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+  #     env:
+  #       NODE_ENV: production
+  #   cacheTtlMs: 15000
+  #   exposure: { rest: true, mcp: true, prefix: "" }
+
+  # Streamable HTTP（也支持 type: sse）
+  # - name: remote-mcp
+  #   transport:
+  #     type: http
+  #     url: https://example.com/mcp
+  #     headers:
+  #       Authorization: Bearer ${REMOTE_MCP_TOKEN}
+  #   exposure: { rest: true, mcp: true, prefix: "" }

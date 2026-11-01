@@ -1,0 +1,67 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Petstore", "version": "1.0.0" },
+  "servers": [{ "url": "http://localhost:9999" }],
+  "paths": {
+    "/pets": {
+      "get": {
+        "operationId": "listPets",
+        "summary": "List pets",
+        "parameters": [
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" } },
+          { "name": "tags", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } } },
+          { "name": "status", "in": "query", "required": false, "schema": { "$ref": "#/components/schemas/PetStatus" } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      },
+      "post": {
+        "operationId": "createPet",
+        "summary": "Create a pet",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewPet" } } }
+        },
+        "responses": { "201": { "description": "created" } }
+      }
+    },
+    "/pets/{petId}": {
+      "get": {
+        "operationId": "getPetById",
+        "summary": "Get one pet",
+        "parameters": [{ "name": "petId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/secure": {
+      "get": {
+        "operationId": "securePing",
+        "summary": "Requires an API key",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": { "200": { "description": "ok" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "ApiKeyAuth": { "type": "apiKey", "in": "header", "name": "x-api-key" } },
+    "schemas": {
+      "PetStatus": { "type": "string", "enum": ["available", "sold"] },
+      "Pet": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/PetStatus" }
+        }
+      },
+      "NewPet": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "description": "Pet name" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "age": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

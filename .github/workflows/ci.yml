@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  docker:
+    name: docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: mcp-api-bridge:ci
+      - name: smoke test the image
+        run: |
+          cp bridge.config.example.yaml bridge.config.yaml
+          docker run -d --name bridge-ci -p 18080:8080 \
+            -v "$PWD/bridge.config.yaml:/app/bridge.config.yaml:ro" \
+            mcp-api-bridge:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:18080/health > /tmp/health.json; then break; fi
+            sleep 2
+          done
+          cat /tmp/health.json
+          curl -fsS -o /dev/null http://localhost:18080/admin
+          docker logs bridge-ci
+          docker rm -f bridge-ci

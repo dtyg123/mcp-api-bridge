@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+data/
+tmp/
+
+# Local config (may contain secrets)
+bridge.config.yaml
+bridge.config.local.yaml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
