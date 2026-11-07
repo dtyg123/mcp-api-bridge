@@ -361,7 +361,7 @@
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
             <div style="flex: 1">
               <h2>来源列表</h2>
-              <div class="hint" style="margin: 0">名称即 URL 中的 <code>{source}</code>。点「打开」进入工作台测试接口或编排数据；来自配置文件的来源同样可在管理台删除。</div>
+              <div class="hint" style="margin: 0">名称即默认输出名；「输出」列显示该来源被哪些对外端点使用。点「打开」进入工作台测试接口或编排数据；来自配置文件的来源同样可在管理台删除。</div>
             </div>
             <button id="reload-sources" class="ghost">重新加载全部</button>
           </div>
@@ -369,11 +369,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>编排</th><th>操作</th>
+                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>编排</th><th>输出</th><th>操作</th>
                 </tr>
               </thead>
               <tbody id="source-rows">
-                <tr><td colspan="6" class="empty">加载中…</td></tr>
+                <tr><td colspan="7" class="empty">加载中…</td></tr>
               </tbody>
             </table>
           </div>
@@ -707,7 +707,7 @@
         const ADMIN_API = url(BOOT.adminApi || "/admin/api");
 
         const $ = (id) => document.getElementById(id);
-        const state = { token: localStorage.getItem(TOKEN_KEY) || "", sources: [], editing: { kind: null, name: null } };
+        const state = { token: localStorage.getItem(TOKEN_KEY) || "", sources: [], outputs: [], editing: { kind: null, name: null } };
 
         // ---------------- helpers ----------------
         function toast(message, kind = "") {
@@ -847,7 +847,10 @@
             }
             const tab = button.dataset.tab;
             if (tab === "overview") loadOverview();
-            if (tab === "sources") loadCredentials();
+            if (tab === "sources") {
+              loadOverview();
+              loadCredentials();
+            }
             if (tab === "outputs") loadOutputs();
             if (tab === "workspace") showWorkspacePanel(wsState.panel);
           });
@@ -867,7 +870,7 @@
           if (!sources.length) {
             const row = document.createElement("tr");
             const cell = document.createElement("td");
-            cell.colSpan = 6;
+            cell.colSpan = 7;
             cell.className = "empty";
             cell.textContent = "还没有来源。去「来源」接入第一个 MCP Server 或 OpenAPI 服务吧。";
             row.appendChild(cell);
@@ -910,6 +913,32 @@
               badge(orchestrated ? "已编排" : "未编排", orchestrated ? "ok" : "err"),
             );
             row.appendChild(orchCell);
+
+            // Which outputs this source is published through (the convert marker).
+            const outputCell = document.createElement("td");
+            const related = state.outputs.filter((output) =>
+              (output.sources || []).some((ref) => ref.source === source.name),
+            );
+            if (!related.length) {
+              outputCell.textContent = "—";
+              outputCell.style.color = "var(--muted)";
+            } else {
+              const tags = document.createElement("div");
+              tags.className = "row-actions";
+              for (const output of related) {
+                const mode = MODE_LABEL[output.mode] || output.mode;
+                const tag = badge(`${output.name} · ${mode}`, output.mode === "proxy" ? "api" : "mcp");
+                tag.title = [
+                  `输出 ${output.name}：${mode}`,
+                  output.form.includes("mcp") ? "MCP" : "",
+                  output.form.includes("api") ? "API" : "",
+                  `${output.toolCount ?? 0} 个工具`,
+                ].filter(Boolean).join(" · ");
+                tags.appendChild(tag);
+              }
+              outputCell.appendChild(tags);
+            }
+            row.appendChild(outputCell);
 
             const actionsCell = document.createElement("td");
             const actions = document.createElement("div");
@@ -1592,6 +1621,7 @@
             clearResult("source-error");
             const data = await api("/overview");
             state.sources = data.sources || [];
+            state.outputs = data.outputs || [];
             $("stat-sources").textContent = state.sources.length;
             $("stat-tools").textContent = data.tools ?? 0;
             const seconds = data.uptimeSeconds || 0;
@@ -1604,7 +1634,7 @@
             renderSources(state.sources);
             fillTrySources(state.sources);
           } catch (error) {
-            $("source-rows").innerHTML = '<tr><td colspan="6" class="empty">无法加载来源列表</td></tr>';
+            $("source-rows").innerHTML = '<tr><td colspan="7" class="empty">无法加载来源列表</td></tr>';
             setResult("source-error", false, error.message || "加载失败", [
               error.status === 401 ? "请在上方输入管理员 Token 后点「保存 Token」。" : "请检查服务是否正常运行。",
             ]);
