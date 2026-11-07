@@ -487,18 +487,18 @@
       <!-- ================= 来源（MCP / OpenAPI / JSON 导入 + 全局凭证） ================= -->
       <section id="tab-sources" hidden>
         <div class="seg" id="add-seg">
-          <button data-kind="mcp" class="active">MCP Server → API</button>
-          <button data-kind="api">OpenAPI 服务 → MCP</button>
-          <button data-kind="json">JSON 导入</button>
+          <button data-kind="mcp" class="active">MCP Server</button>
+          <button data-kind="api">OpenAPI 服务</button>
+          <button data-kind="json">一键导入</button>
         </div>
 
         <!-- MCP 表单 -->
         <div class="card" id="form-mcp">
             <h2>添加 MCP Server</h2>
-            <div class="hint">接入一个 MCP Server，网关会把它的每个工具同时映射成 REST 接口和 MCP 工具。</div>
+            <div class="hint">接入一个 MCP Server。它只是来源；在「输出」里选择要以 MCP 还是 API 形态对外发布，并裁剪工具。</div>
 
             <div class="two-col">
-              <label class="field"><span>名称 <em>*</em>（用于 URL，字母/数字/._-）</span><input id="mcp-name" type="text" placeholder="filesystem" /></label>
+              <label class="field"><span>名称 <em>*</em>（用于默认输出名 / 工具前缀，字母/数字/._-）</span><input id="mcp-name" type="text" placeholder="filesystem" /></label>
               <label class="field"><span>描述</span><input id="mcp-desc" type="text" placeholder="本地文件系统工具" /></label>
             </div>
 
@@ -542,10 +542,10 @@
           <!-- OpenAPI 表单 -->
           <div class="card" id="form-api" hidden>
             <h2>添加 OpenAPI 服务</h2>
-            <div class="hint">读取 OpenAPI 3.x 或 Swagger 2.0 文档（Swagger 2.0 自动转换），把每个 operation 变成 MCP 工具。填好下面的「文档地址」即可快速添加。</div>
+            <div class="hint">读取 OpenAPI 3.x 或 Swagger 2.0 文档（Swagger 2.0 自动转换），每个 operation 变成一个工具。它只是来源；在「输出」里选择发布形态并裁剪工具。</div>
 
             <div class="two-col">
-              <label class="field"><span>名称 <em>*</em>（用于 URL，字母/数字/._-）</span><input id="api-name" type="text" placeholder="petstore" /></label>
+              <label class="field"><span>名称 <em>*</em>（用于默认输出名 / 工具前缀，字母/数字/._-）</span><input id="api-name" type="text" placeholder="petstore" /></label>
               <label class="field"><span>描述</span><input id="api-desc" type="text" placeholder="宠物商店" /></label>
             </div>
 
