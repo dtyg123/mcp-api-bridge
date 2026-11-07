@@ -163,9 +163,58 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     next();
   });
 
-  const restAuth = requireToken(config.server.auth.restToken);
-  const mcpAuth = requireToken(config.server.auth.mcpToken);
   const adminAuth = requireToken(config.server.adminToken);
+
+  const sourceAccessToken = (source: string): string => {
+    if (!source) return "";
+    return (
+      store.config.apis.find((api) => api.name === source)?.accessToken ??
+      store.config.mcpServers.find((server) => server.name === source)?.accessToken ??
+      ""
+    );
+  };
+  const anySourceToken = (): boolean =>
+    store.config.apis.some((api) => Boolean(api.accessToken)) ||
+    store.config.mcpServers.some((server) => Boolean(server.accessToken));
+
+  /**
+   * Bearer / x-api-key auth for the MCP and REST surfaces.
+   * - Per-source routes accept the global token OR that source's access token.
+   * - Aggregate routes accept only the global token.
+   * - Once any source token exists both kinds require a token, so a source
+   *   without one falls back to the global token instead of anonymous access.
+   */
+  const tokenAuth = (surface: "mcp" | "rest", perSource = false): RequestHandler => {
+    const globalToken = surface === "mcp" ? config.server.auth.mcpToken : config.server.auth.restToken;
+    return (req, res, next) => {
+      const scoped = perSource ? sourceAccessToken(String(req.params.source ?? "")) : "";
+      const allowed = [globalToken, scoped].filter(Boolean);
+      if (allowed.length === 0) {
+        // Any source token means the bridge is in isolation mode: a source that
+        // has no token of its own falls back to the global token, never to anon.
+        if (anySourceToken()) {
+          res.status(401).json({
+            ok: false,
+            error: "unauthorized",
+            message: perSource
+              ? "This source has no access token, so it requires the global token; aggregate tokens are not accepted here."
+              : "Aggregate endpoints are disabled while per-source tokens are configured; use the per-source endpoint or set a global token.",
+          });
+          return;
+        }
+        return next();
+      }
+      const header = req.headers.authorization ?? "";
+      const provided = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : String(req.headers["x-api-key"] ?? "");
+      if (provided && allowed.some((token) => safeCompare(provided, token))) return next();
+      res.status(401).json({ ok: false, error: "unauthorized", message: "Provide a valid bearer token." });
+    };
+  };
+
+  const restAuth = tokenAuth("rest");
+  const mcpAuth = tokenAuth("mcp");
+  const restSourceAuth = tokenAuth("rest", true);
+  const mcpSourceAuth = tokenAuth("mcp", true);
 
   const mcpEndpoints = new Map<string, McpHttpEndpoint>();
 
@@ -272,7 +321,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     await buildEndpoint().handle(req, res);
   });
 
-  router.all(`${config.server.mcp.path}/:source`, mcpAuth, async (req, res) => {
+  router.all(`${config.server.mcp.path}/:source`, mcpSourceAuth, async (req, res) => {
     const source = req.params.source;
     if (!registry.hasSource(source)) {
       res.status(404).json({ ok: false, error: "unknown_source", message: `No source named "${source}".` });
@@ -350,8 +399,8 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     }
   };
 
-  router.get(`${config.server.rest.path}/:source/:tool`, restAuth, invokeHandler);
-  router.post(`${config.server.rest.path}/:source/:tool`, restAuth, invokeHandler);
+  router.get(`${config.server.rest.path}/:source/:tool`, restSourceAuth, invokeHandler);
+  router.post(`${config.server.rest.path}/:source/:tool`, restSourceAuth, invokeHandler);
 
   // ---------------------------------------------------------------------------
   // Web admin UI + admin API
@@ -928,6 +977,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       restPath: config.server.rest.path,
       mcpToken: config.server.auth.mcpToken,
       restToken: config.server.auth.restToken,
+      sourceToken: source ? sourceAccessToken(source) : "",
       configFile: path.join(config.configDir, "bridge.config.yaml"),
       tools,
       source,

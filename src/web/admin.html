@@ -517,7 +517,7 @@
             </div>
 
             <details class="adv">
-              <summary>高级选项（暴露面 / 超时）</summary>
+              <summary>高级选项（暴露面 / 访问令牌 / 超时）</summary>
               <div class="checkline">
                 <label><input type="checkbox" id="mcp-rest" checked /> 暴露为 REST</label>
                 <label><input type="checkbox" id="mcp-mcp" checked /> 暴露为 MCP</label>
@@ -527,6 +527,7 @@
                 <label class="field"><span>工具列表缓存 (ms)</span><input id="mcp-cache" type="number" placeholder="15000" /></label>
                 <label class="field"><span>调用超时 (ms)</span><input id="mcp-timeout" type="number" placeholder="120000" /></label>
               </div>
+              <label class="field"><span>访问令牌（可选；设置后该来源端点只认这个 token）</span><input id="mcp-access-token" type="password" placeholder="留空 = 仅用全局 token" /></label>
             </details>
 
             <div class="form-actions">
@@ -560,7 +561,7 @@
             </div>
 
             <details class="adv">
-              <summary>高级选项（额外请求头 / 过滤 / 暴露面 / 超时）</summary>
+              <summary>高级选项（额外请求头 / 过滤 / 暴露面 / 访问令牌 / 超时）</summary>
               <label class="field"><span>额外请求头（<b>非认证</b>，每行 <code>Header: value</code>，如 User-Agent）</span><textarea id="api-headers" style="min-height: 56px" placeholder="User-Agent: mcp-api-bridge"></textarea></label>
               <span class="checkline" style="margin-bottom: 8px">
                 <label><input type="checkbox" id="api-allow-cred-switch" /> 允许调用方切换凭证（REST 请求头 <code>x-bridge-credential</code>，仅限本来源引用的凭证）</label>
@@ -575,6 +576,7 @@
                 <label class="field"><span>工具名前缀</span><input id="api-prefix" type="text" placeholder="（默认空）" /></label>
                 <label class="field"><span>请求超时 (ms)</span><input id="api-timeout" type="number" placeholder="60000" /></label>
               </div>
+              <label class="field"><span>访问令牌（可选；设置后该来源端点只认这个 token，聚合端点仅认全局 token）</span><input id="api-access-token" type="password" placeholder="留空 = 仅用全局 token" /></label>
             </details>
 
             <div class="form-actions">
@@ -1743,6 +1745,8 @@
           const timeout = Number($("mcp-timeout").value);
           if (Number.isFinite(cache) && cache > 0) entry.cacheTtlMs = cache;
           if (Number.isFinite(timeout) && timeout > 0) entry.timeoutMs = timeout;
+          const token = $("mcp-access-token").value.trim();
+          if (token) entry.accessToken = token;
           return entry;
         }
 
@@ -1762,6 +1766,7 @@
           $("mcp-prefix").value = entry.exposure?.prefix || "";
           $("mcp-cache").value = entry.cacheTtlMs || "";
           $("mcp-timeout").value = entry.timeoutMs || "";
+          $("mcp-access-token").value = entry.accessToken || "";
           clearResult("mcp-result");
           $("mcp-save").textContent = state.editing.name && state.editing.kind === "mcp" ? "更新来源" : "保存并上线";
         }
@@ -1842,6 +1847,7 @@
             security: state.editing.security && Object.keys(state.editing.security).length ? state.editing.security : {},
             credentialRefs: checkedRefs,
             allowCredentialSwitch: $("api-allow-cred-switch").checked,
+            accessToken: $("api-access-token").value.trim() || undefined,
             include: splitList($("api-include").value),
             exclude: splitList($("api-exclude").value),
             exposure: {
@@ -1863,6 +1869,7 @@
           $("api-baseurl").value = entry.baseUrl || "";
           $("api-headers").value = kvText(entry.headers);
           $("api-allow-cred-switch").checked = entry.allowCredentialSwitch === true;
+          $("api-access-token").value = entry.accessToken || "";
           state.editing.security = entry.security && Object.keys(entry.security).length ? entry.security : undefined;
           renderApiCredentialChoices(entry.credentialRefs || []);
           $("api-include").value = (entry.include || []).join(", ");
@@ -1884,6 +1891,7 @@
           $("api-baseurl").value = "";
           $("api-headers").value = "";
           $("api-allow-cred-switch").checked = false;
+          $("api-access-token").value = "";
           renderApiCredentialChoices([]);
           $("api-include").value = "";
           $("api-exclude").value = "";

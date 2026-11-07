@@ -336,3 +336,108 @@ test("file-based (config) sources can be deleted too", async () => {
   const storeJson2 = JSON.parse(await readFile(path.join(tempDir, "data", "managed-sources.json"), "utf8"));
   assert.ok(!storeJson2.excludes.some((e: any) => e.kind === "api" && e.name === "petstore"), "exclusion cleared after re-add");
 });
+
+test("per-source access tokens isolate sources and lock the aggregate endpoints", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "mcp-bridge-auth-"));
+  const configPath = path.join(dir, "bridge.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      logging: { level: "error" },
+      server: { port: 0, host: "127.0.0.1", auth: { mcp: "global-mcp", rest: "global-rest" } },
+      apis: [
+        {
+          name: "petstore",
+          spec: path.resolve("test/fixtures/petstore.openapi.json"),
+          baseUrl: mock.url,
+          accessToken: "pet-token",
+        },
+      ],
+      mcpServers: [
+        {
+          name: "echo",
+          transport: { type: "stdio", command: process.execPath, args: [path.resolve("test/fixtures/echo-mcp-server.mjs")] },
+        },
+      ],
+    }),
+  );
+
+  const logger = new Logger("error", "text", "test");
+  const scopedConfig = await loadConfig(configPath);
+  const scopedCredentials = new CredentialStore(path.join(dir, "data", "credentials.json"), logger);
+  await scopedCredentials.init();
+  const scopedTransforms = new TransformStore(path.join(dir, "data", "transforms.json"), logger);
+  await scopedTransforms.init();
+  const scopedStore = new SourceStore(scopedConfig, logger, scopedCredentials);
+  await scopedStore.init();
+  const scopedRegistry = new Registry(scopedStore.config, logger);
+  await scopedRegistry.initialize();
+  const { app, close } = createHttpApp({
+    config: scopedStore.config,
+    registry: scopedRegistry,
+    store: scopedStore,
+    credentials: scopedCredentials,
+    transforms: scopedTransforms,
+    logger,
+    startedAt: Date.now(),
+    version: "test",
+  });
+  const server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const scopedBase = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const mcpStatus = async (endpoint: string, token?: string) => {
+    const res = await fetch(`${scopedBase}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "auth-test", version: "1" } },
+      }),
+    });
+    await res.body?.cancel();
+    return res.status;
+  };
+  const restStatus = (endpoint: string, token?: string) =>
+    fetch(`${scopedBase}${endpoint}`, { headers: token ? { authorization: `Bearer ${token}` } : {} }).then((r) => r.status);
+
+  try {
+    // Aggregate endpoints require the global token.
+    assert.equal(await mcpStatus("/mcp"), 401);
+    assert.equal(await mcpStatus("/mcp", "pet-token"), 401);
+    assert.equal(await mcpStatus("/mcp", "global-mcp"), 200);
+
+    // Per-source endpoint accepts its own token or the global one.
+    assert.equal(await mcpStatus("/mcp/petstore"), 401);
+    assert.equal(await mcpStatus("/mcp/petstore", "pet-token"), 200);
+    assert.equal(await mcpStatus("/mcp/petstore", "global-mcp"), 200);
+    // A source without its own token rejects another source's token, and also
+    // anonymous calls once isolation mode is on (falls back to the global one).
+    assert.equal(await mcpStatus("/mcp/echo"), 401);
+    assert.equal(await mcpStatus("/mcp/echo", "pet-token"), 401);
+    assert.equal(await mcpStatus("/mcp/echo", "global-mcp"), 200);
+
+    // REST: per-source accepts its own token or the global one; discovery is global-only.
+    assert.equal(await restStatus("/api/petstore/listPets?limit=1"), 401);
+    assert.equal(await restStatus("/api/petstore/listPets?limit=1", "pet-token"), 200);
+    assert.equal(await restStatus("/api/petstore/listPets?limit=1", "global-rest"), 200);
+    assert.equal(await restStatus("/openapi.json", "pet-token"), 401);
+    assert.equal(await restStatus("/openapi.json", "global-rest"), 200);
+
+    // The per-service prompt carries the source token and drops the aggregate doc link.
+    const prompt = await fetch(`${scopedBase}/admin/api/prompt?kind=service&source=petstore`).then((r) => r.json());
+    assert.match(prompt.text, /Bearer pet-token/);
+    assert.ok(!prompt.text.includes("/openapi.json"));
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await scopedRegistry.close();
+    await close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

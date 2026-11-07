@@ -8,6 +8,8 @@ export type PromptContext = {
   restPath: string;
   mcpToken: string;
   restToken: string;
+  /** Per-source token, when the source has its own access token. */
+  sourceToken?: string;
   configFile: string;
   tools: BridgeTool[];
   source?: string;
@@ -33,7 +35,8 @@ function toolLines(tools: BridgeTool[]): string {
 
 function mcpClientConfig(ctx: PromptContext): string {
   const headers: Record<string, string> = {};
-  if (ctx.mcpToken) headers.Authorization = `Bearer ${ctx.mcpToken}`;
+  const token = ctx.sourceToken || ctx.mcpToken;
+  if (token) headers.Authorization = `Bearer ${token}`;
   const config = {
     mcpServers: {
       bridge: {
@@ -136,8 +139,10 @@ export function buildPrompt(kind: PromptKind, ctx: PromptContext): string {
       "# 连接信息（单来源）",
       `- MCP 端点：\`${ctx.baseUrl}${ctx.mcpPath}${ctx.source ? `/${ctx.source}` : ""}\``,
       `- REST 调用：\`POST ${ctx.baseUrl}${ctx.restPath}/${ctx.source ?? "{source}"}/{tool}\``,
-      `- OpenAPI 文档：\`${ctx.baseUrl}/openapi.json\``,
-      `- 鉴权：${authLine(ctx.mcpToken)}`,
+      ...(ctx.sourceToken ? [] : [`- OpenAPI 文档：\`${ctx.baseUrl}/openapi.json\``]),
+      `- 鉴权：${authLine(ctx.sourceToken || ctx.mcpToken)}${
+        ctx.sourceToken ? "（该令牌只能访问本服务，不能访问聚合端点）" : ""
+      }`,
       "",
       "# 客户端配置（只接入该服务）",
       "```json",

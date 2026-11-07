@@ -36,6 +36,8 @@ export type McpServerConfig = {
   cacheTtlMs: number;
   /** Pass client cancellation through to the upstream server. */
   timeoutMs: number;
+  /** Optional token that only unlocks this source's endpoints. */
+  accessToken?: string;
 };
 
 export type SecurityCredential = {
@@ -65,6 +67,8 @@ export type ApiConfig = {
    * the `x-bridge-credential` header (admin-only switching is always allowed).
    */
   allowCredentialSwitch?: boolean;
+  /** Optional token that only unlocks this source's endpoints. */
+  accessToken?: string;
   include?: string[];
   exclude?: string[];
   exposure: ExposureConfig;
@@ -200,6 +204,7 @@ export function normalizeMcpServer(raw: unknown, index: number, configDir: strin
     exposure: normalizeExposure(raw.exposure, ""),
     cacheTtlMs: asNumber(raw.cacheTtlMs, 15_000),
     timeoutMs: asNumber(raw.timeoutMs, 120_000),
+    accessToken: raw.accessToken ? asString(raw.accessToken) : undefined,
   };
 }
 
@@ -231,6 +236,7 @@ export function normalizeApi(raw: unknown, index: number, configDir: string): Ap
     security,
     credentialRefs: asStringArray(raw.credentialRefs) ?? [],
     allowCredentialSwitch: raw.allowCredentialSwitch === true,
+    accessToken: raw.accessToken ? asString(raw.accessToken) : undefined,
     include: asStringArray(raw.include),
     exclude: asStringArray(raw.exclude),
     exposure: normalizeExposure(raw.exposure, ""),
