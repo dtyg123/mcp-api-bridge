@@ -51,14 +51,13 @@ Environment:
   BRIDGE_REST_TOKEN, BRIDGE_MCP_TOKEN, BRIDGE_ADMIN_TOKEN
 
 Endpoints (HTTP mode):
-  GET  /openapi.json              generated OpenAPI document
-  GET  /tools                     tool catalog with JSON Schemas
   GET  /health                    health probe
-  POST /api/{source}/{tool}       invoke a tool (body = arguments)
-  GET  /api/{source}/{tool}       invoke a tool (query string = arguments)
-  POST /mcp                       aggregated MCP endpoint (Streamable HTTP)
-  POST /mcp/{source}              per-source MCP endpoint
-  GET  /admin                     web admin UI (add sources + prompt helper)
+  GET  /openapi/{output}.json     OpenAPI document of one output
+  POST /api/{output}/{tool}       invoke a tool (body = arguments)
+  GET  /api/{output}/{tool}       invoke a tool (query string = arguments)
+  POST /api/{output}/*            raw passthrough for proxy outputs
+  POST /mcp/{output}              MCP endpoint of one output (Streamable HTTP)
+  GET  /admin                     web admin UI (sources + outputs + tester)
   POST /admin/reload              reload specs / upstream tool lists
 `;
 
@@ -237,9 +236,9 @@ async function main(): Promise<void> {
 
   const base = config.server.basePath.replace(/\/+$/, "");
   logger.info(`HTTP server listening on http://${config.server.host}:${config.server.port}${base}`);
-  logger.info(`  MCP (Streamable HTTP): ${base || "/"}${config.server.mcp.path}`);
-  logger.info(`  REST tool calls:       ${base || "/"}${config.server.rest.path}/{source}/{tool}`);
-  logger.info(`  OpenAPI document:      ${base || "/"}/openapi.json`);
+  logger.info(`  MCP (Streamable HTTP): ${base || "/"}${config.server.mcp.path}/{output}`);
+  logger.info(`  REST tool calls:       ${base || "/"}${config.server.rest.path}/{output}/{tool}`);
+  logger.info(`  OpenAPI documents:     ${base || "/"}/openapi/{output}.json`);
   if (config.server.admin.enabled) {
     logger.info(`  Admin UI:              ${base || "/"}${config.server.admin.path}`);
   }

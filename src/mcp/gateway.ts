@@ -73,17 +73,3 @@ export function createGatewayServer(options: GatewayServerOptions): Server {
 
   return server;
 }
-
-/** Gateway tool listing as plain JSON (used by the `/tools` REST endpoint). */
-export function describeTools(tools: BridgeTool[]): Array<Record<string, unknown>> {
-  return tools.map((tool) => ({
-    name: tool.name,
-    source: tool.source,
-    sourceType: tool.sourceType,
-    originalName: tool.originalName,
-    title: tool.title,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    outputSchema: tool.outputSchema,
-  }));
-}

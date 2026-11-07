@@ -106,7 +106,7 @@ test("mergeSources drops file-based sources listed in excludes", () => {
       { name: "other", spec: "y.yaml", baseUrl: "http://y" },
     ],
   } as any;
-  const merged = mergeSources(base, { mcpServers: [], apis: [], excludes: [{ kind: "api", name: "petstore" }] });
+  const merged = mergeSources(base, { mcpServers: [], apis: [], excludes: [{ kind: "api", name: "petstore" }], outputs: [] });
   assert.equal(merged.apis.length, 1, "excluded api removed");
   assert.equal(merged.apis[0].name, "other");
   assert.equal(merged.mcpServers.length, 1, "non-excluded mcp kept");
@@ -116,6 +116,7 @@ test("mergeSources drops file-based sources listed in excludes", () => {
     mcpServers: [],
     apis: [{ name: "petstore", spec: "x.yaml", baseUrl: "http://x" }],
     excludes: [{ kind: "api", name: "petstore" }],
+    outputs: [],
   });
   assert.equal(reAdded.apis.length, 2, "managed override re-adds the excluded source");
 });

@@ -2,15 +2,16 @@ import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from "express";
-import type { BridgeConfig } from "../config.js";
-import { ConfigError, applyCredentialRefs, type ApiConfig } from "../config.js";
-import { buildPrompt, type PromptKind } from "../admin/prompts.js";
+import { parse as parseYaml } from "yaml";
+import type { BridgeConfig, OutputConfig } from "../config.js";
+import { ConfigError, applyCredentialRefs, normalizeOutput, type ApiConfig } from "../config.js";
+import { buildPrompt } from "../admin/prompts.js";
 import { testSource } from "../admin/service.js";
 import { maskCredential, type CredentialStore } from "../admin/credentials.js";
 import type { SourceKind, SourceStore } from "../admin/store.js";
 import { applyTransform, discoverFields, type TransformConfig, type TransformStore } from "../admin/transforms.js";
 import { buildOpenApiDocument } from "../convert/tools-to-openapi.js";
-import { createGatewayServer, describeTools } from "../mcp/gateway.js";
+import { createGatewayServer } from "../mcp/gateway.js";
 import { loadOpenApiDocument } from "../openapi/loader.js";
 import type { Registry } from "../registry.js";
 import { coerceQueryArgs, validateArgs } from "../util/args.js";
@@ -140,6 +141,10 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       limit: config.server.bodyLimit,
       strict: false,
       type: ["application/json", "application/*+json"],
+      // Kept for `proxy` outputs, which forward the request body untouched.
+      verify: (req, _res, buffer) => {
+        (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+      },
     }),
   );
 
@@ -165,86 +170,73 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
 
   const adminAuth = requireToken(config.server.adminToken);
 
-  const sourceAccessToken = (source: string): string => {
-    if (!source) return "";
-    return (
-      store.config.apis.find((api) => api.name === source)?.accessToken ??
-      store.config.mcpServers.find((server) => server.name === source)?.accessToken ??
-      ""
-    );
+  const outputs = (): OutputConfig[] => store.config.outputs;
+  const findOutput = (name: string): OutputConfig | undefined => outputs().find((output) => output.name === name);
+
+  const providedToken = (req: Request): string => {
+    const header = req.headers.authorization ?? "";
+    return header.toLowerCase().startsWith("bearer ")
+      ? header.slice(7).trim()
+      : String(req.headers["x-api-key"] ?? "");
   };
-  const anySourceToken = (): boolean =>
-    store.config.apis.some((api) => Boolean(api.accessToken)) ||
-    store.config.mcpServers.some((server) => Boolean(server.accessToken));
 
   /**
-   * Bearer / x-api-key auth for the MCP and REST surfaces.
-   * - Per-source routes accept the global token OR that source's access token.
-   * - Aggregate routes accept only the global token.
-   * - Once any source token exists both kinds require a token, so a source
-   *   without one falls back to the global token instead of anonymous access.
+   * Bearer / x-api-key auth for one output: its own token or the global token
+   * of that surface. No token anywhere means the output is open (default).
    */
-  const tokenAuth = (surface: "mcp" | "rest", perSource = false): RequestHandler => {
+  const authorizeOutput = (output: OutputConfig, surface: "mcp" | "api", req: Request, res: Response): boolean => {
     const globalToken = surface === "mcp" ? config.server.auth.mcpToken : config.server.auth.restToken;
+    const allowed = [output.token, globalToken].filter(Boolean) as string[];
+    if (allowed.length === 0) return true;
+    const provided = providedToken(req);
+    if (provided && allowed.some((token) => safeCompare(provided, token))) return true;
+    res.status(401).json({ ok: false, error: "unauthorized", message: "Provide a valid bearer token." });
+    return false;
+  };
+
+  const outputAuth = (surface: "mcp" | "api"): RequestHandler => {
     return (req, res, next) => {
-      const scoped = perSource ? sourceAccessToken(String(req.params.source ?? "")) : "";
-      const allowed = [globalToken, scoped].filter(Boolean);
-      if (allowed.length === 0) {
-        // Any source token means the bridge is in isolation mode: a source that
-        // has no token of its own falls back to the global token, never to anon.
-        if (anySourceToken()) {
-          res.status(401).json({
-            ok: false,
-            error: "unauthorized",
-            message: perSource
-              ? "This source has no access token, so it requires the global token; aggregate tokens are not accepted here."
-              : "Aggregate endpoints are disabled while per-source tokens are configured; use the per-source endpoint or set a global token.",
-          });
-          return;
-        }
-        return next();
+      const output = findOutput(String(req.params.output ?? ""));
+      if (!output) {
+        res.status(404).json({ ok: false, error: "unknown_output", message: `No output named "${req.params.output}".` });
+        return;
       }
-      const header = req.headers.authorization ?? "";
-      const provided = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : String(req.headers["x-api-key"] ?? "");
-      if (provided && allowed.some((token) => safeCompare(provided, token))) return next();
-      res.status(401).json({ ok: false, error: "unauthorized", message: "Provide a valid bearer token." });
+      if (!authorizeOutput(output, surface, req, res)) return;
+      res.locals.output = output;
+      next();
     };
   };
 
-  const restAuth = tokenAuth("rest");
-  const mcpAuth = tokenAuth("mcp");
-  const restSourceAuth = tokenAuth("rest", true);
-  const mcpSourceAuth = tokenAuth("mcp", true);
+  const mcpOutputAuth = outputAuth("mcp");
+  const apiOutputAuth = outputAuth("api");
 
   const mcpEndpoints = new Map<string, McpHttpEndpoint>();
 
-  const buildEndpoint = (sourceName?: string): McpHttpEndpoint => {
-    const key = sourceName ?? "__all__";
-    const existing = mcpEndpoints.get(key);
+  const closeEndpoints = async (): Promise<void> => {
+    const endpoints = [...mcpEndpoints.values()];
+    mcpEndpoints.clear();
+    await Promise.allSettled(endpoints.map((endpoint) => endpoint.close()));
+  };
+
+  const buildEndpoint = (output: OutputConfig): McpHttpEndpoint => {
+    const existing = mcpEndpoints.get(output.name);
     if (existing) return existing;
     const endpoint = new McpHttpEndpoint({
-      name: sourceName ? `bridge:${sourceName}` : "mcp-api-bridge",
+      name: `bridge:${output.name}`,
       mode: config.server.mcp.sessionMode,
       jsonResponse: config.server.mcp.jsonResponse,
-      logger: logger.child(`mcp-http${sourceName ? `:${sourceName}` : ""}`),
+      logger: logger.child(`mcp-http:${output.name}`),
       createServer: () =>
         createGatewayServer({
-          name: sourceName ? `bridge-${sourceName}` : "mcp-api-bridge",
+          name: `bridge-${output.name}`,
           version: VERSION,
-          instructions: sourceName
-            ? `MCP bridge endpoint exposing tools from "${sourceName}".`
-            : "Tools bridged from MCP servers and OpenAPI services. Tool names are prefixed with their source.",
-          listTools: () => registry.getTools("mcp", sourceName),
-          getTool: (name) => {
-            const tool = registry.getTool(name);
-            if (!tool) return undefined;
-            if (sourceName && tool.source !== sourceName) return undefined;
-            return registry.isExposed(tool, "mcp") ? tool : undefined;
-          },
-          logger: logger.child(`mcp${sourceName ? `:${sourceName}` : ""}`),
+          instructions: `MCP bridge output "${output.name}" (${output.mode}).`,
+          listTools: () => registry.getOutputTools(output),
+          getTool: (name) => registry.findOutputTool(output, name),
+          logger: logger.child(`mcp:${output.name}`),
         }),
     });
-    mcpEndpoints.set(key, endpoint);
+    mcpEndpoints.set(output.name, endpoint);
     return endpoint;
   };
 
@@ -273,16 +265,25 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
 
   router.get("/", (req, res) => {
     const base = publicBaseUrl(config, req);
+    const outputLinks = (output: OutputConfig) => ({
+      name: output.name,
+      mode: output.mode,
+      mcp:
+        output.form.includes("mcp") && output.mode !== "proxy"
+          ? `${base}${config.server.mcp.path}/${output.name}`
+          : undefined,
+      api: output.form.includes("api") ? `${base}${config.server.rest.path}/${output.name}` : undefined,
+      openapi:
+        output.mode === "convert" && output.form.includes("api")
+          ? `${base}/openapi/${output.name}.json`
+          : undefined,
+    });
     res.json({
       name: "mcp-api-bridge",
       version: VERSION,
       description: "Bidirectional MCP <-> API gateway.",
       endpoints: {
-        mcp: `${base}${config.server.mcp.path}`,
-        mcpPerSource: `${base}${config.server.mcp.path}/{source}`,
-        restCall: `${base}${config.server.rest.path}/{source}/{tool}`,
-        openapi: `${base}/openapi.json`,
-        tools: `${base}/tools`,
+        outputs: outputs().map(outputLinks),
         health: `${base}/health`,
         admin: config.server.admin.enabled ? `${base}${adminPath}` : undefined,
       },
@@ -291,43 +292,40 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     });
   });
 
-  router.get("/openapi.json", restAuth, (req, res) => {
+  /** Per-output OpenAPI document (convert outputs with the API form only). */
+  router.get("/openapi/:file", (req, res) => {
+    const name = String(req.params.file ?? "").replace(/\.json$/i, "");
+    const output = findOutput(name);
+    if (!output || output.mode !== "convert" || !output.form.includes("api")) {
+      res.status(404).json({ ok: false, error: "unknown_output", message: `No API output named "${name}".` });
+      return;
+    }
+    if (!authorizeOutput(output, "api", req, res)) return;
     const requested = String(req.query.version ?? config.openapi.version);
     const version: "3.0" | "3.1" = requested === "3.0" ? "3.0" : "3.1";
     const document = buildOpenApiDocument({
-      tools: registry.getTools("rest"),
-      title: config.openapi.title,
+      tools: registry.getOutputTools(output),
+      title: `${config.openapi.title} · ${output.name}`,
       description: config.openapi.description,
       version,
       serverUrl: publicBaseUrl(config, req),
-      basePath: config.server.rest.path,
+      basePath: `${config.server.rest.path}/${output.name}`,
       versionString: VERSION,
     });
     res.type("application/json").send(JSON.stringify(document, null, 2));
   });
 
-  router.get("/tools", restAuth, (req, res) => {
-    const surface = String(req.query.surface ?? "mcp") === "rest" ? "rest" : "mcp";
-    const source = typeof req.query.source === "string" ? req.query.source : undefined;
-    const tools = registry.getTools(surface, source);
-    res.json({ count: tools.length, surface, tools: describeTools(tools) });
-  });
-
   // ---------------------------------------------------------------------------
-  // MCP surface (API -> MCP and MCP -> MCP)
+  // MCP surface: one endpoint per output
   // ---------------------------------------------------------------------------
 
-  router.all(config.server.mcp.path, mcpAuth, async (req, res) => {
-    await buildEndpoint().handle(req, res);
-  });
-
-  router.all(`${config.server.mcp.path}/:source`, mcpSourceAuth, async (req, res) => {
-    const source = req.params.source;
-    if (!registry.hasSource(source)) {
-      res.status(404).json({ ok: false, error: "unknown_source", message: `No source named "${source}".` });
+  router.all(`${config.server.mcp.path}/:output`, mcpOutputAuth, async (req, res) => {
+    const output = res.locals.output as OutputConfig;
+    if (!output.form.includes("mcp") || output.mode === "proxy") {
+      res.status(404).json({ ok: false, error: "unsupported", message: `输出 "${output.name}" 没有 MCP 形态。` });
       return;
     }
-    await buildEndpoint(source).handle(req, res);
+    await buildEndpoint(output).handle(req, res);
   });
 
   // ---------------------------------------------------------------------------
@@ -335,15 +333,15 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
   // ---------------------------------------------------------------------------
 
   const invokeHandler = async (req: Request, res: Response): Promise<void> => {
-    const source = req.params.source;
-    const identifier = req.params.tool;
-    const tool = registry.findTool(source, identifier);
-    if (!tool || !registry.isExposed(tool, "rest")) {
+    const output = res.locals.output as OutputConfig;
+    const identifier = String(req.params[0] ?? "");
+    const tool = registry.findOutputTool(output, identifier);
+    if (!tool) {
       res.status(404).json({
         ok: false,
         error: "unknown_tool",
-        message: `No tool "${identifier}" on source "${source}".`,
-        hint: `${publicBaseUrl(config, req)}${config.server.rest.path === "/" ? "" : config.server.rest.path}/tools`,
+        message: `输出 "${output.name}" 上没有工具 "${identifier}".`,
+        hint: `${publicBaseUrl(config, req)}${config.server.rest.path}/${output.name}`,
       });
       return;
     }
@@ -361,17 +359,17 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       return;
     }
 
-    // Optional per-request credential switch (only when the source allows it,
-    // and only among the credentials it already references).
+    // Optional per-request credential switch (only when the output allows it,
+    // and only among the credentials the tool's source already references).
     const requestedCredential = req.get("x-bridge-credential");
     let overrideHeaders: Record<string, string> | undefined;
     if (requestedCredential) {
-      const apiConfig = store.config.apis.find((api) => api.name === source);
-      if (!apiConfig?.allowCredentialSwitch) {
+      const apiConfig = store.config.apis.find((api) => api.name === tool.source);
+      if (!output.allowCredentialSwitch || !apiConfig) {
         res.status(403).json({
           ok: false,
           error: "credential_switch_disabled",
-          message: `来源 "${source}" 未允许调用方切换凭证（allowCredentialSwitch=false）。`,
+          message: `输出 "${output.name}" 未允许调用方切换凭证（allowCredentialSwitch=false）。`,
         });
         return;
       }
@@ -379,7 +377,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
         res.status(400).json({
           ok: false,
           error: "credential_not_allowed",
-          message: `凭证 "${requestedCredential}" 未被来源 "${source}" 引用。`,
+          message: `凭证 "${requestedCredential}" 未被来源 "${tool.source}" 引用。`,
         });
         return;
       }
@@ -394,13 +392,115 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
         return;
       }
       const message = error instanceof Error ? error.message : String(error);
-      logger.error(`REST invocation failed (${source}/${identifier}): ${message}`);
+      logger.error(`REST invocation failed (${output.name}/${identifier}): ${message}`);
       res.status(502).json({ ok: false, error: "upstream_error", message });
     }
   };
 
-  router.get(`${config.server.rest.path}/:source/:tool`, restSourceAuth, invokeHandler);
-  router.post(`${config.server.rest.path}/:source/:tool`, restSourceAuth, invokeHandler);
+  const HOP_BY_HOP = new Set([
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "content-encoding",
+    "content-length",
+  ]);
+
+  /**
+   * `proxy` outputs forward the original HTTP call to one API source: same
+   * method, path, query and body. The client only ever sees the bridge URL;
+   * upstream credentials and the upstream host stay on this side.
+   */
+  const proxyHandler = async (req: Request, res: Response): Promise<void> => {
+    const output = res.locals.output as OutputConfig;
+    const sourceName = output.sources[0]?.source ?? "";
+    const apiConfig = store.config.apis.find((api) => api.name === sourceName);
+    const detailBase = registry.getSource(sourceName)?.detail?.baseUrl;
+    const baseUrl = (typeof detailBase === "string" && detailBase) || apiConfig?.baseUrl || "";
+    if (!baseUrl) {
+      res.status(502).json({ ok: false, error: "upstream_unavailable", message: `来源 "${sourceName}" 没有可用的 baseUrl。` });
+      return;
+    }
+    const suffix = String(req.params[0] ?? "");
+    const queryIndex = req.originalUrl.indexOf("?");
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : "";
+    const target = `${baseUrl.replace(/\/+$/, "")}/${suffix.replace(/^\/+/, "")}${query}`;
+
+    // shortcut: OpenAPI `security` credentials are only applied by tool mode;
+    // proxy outputs forward `headers` + saved credentialRefs, so use those
+    // (or a source with header auth) when proxying a secured API.
+    const headers: Record<string, string> = { ...(apiConfig?.headers ?? {}) };
+    const contentType = req.get("content-type");
+    if (contentType) headers["content-type"] = contentType;
+    const accept = req.get("accept");
+    if (accept) headers.accept = accept;
+
+    const method = req.method.toUpperCase();
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+    const body =
+      method === "GET" || method === "HEAD"
+        ? undefined
+        : rawBody
+          ? new Uint8Array(rawBody)
+          : req.body === undefined
+            ? undefined
+            : JSON.stringify(req.body);
+
+    try {
+      const upstream = await fetch(target, {
+        method,
+        headers,
+        body,
+        redirect: "follow",
+        signal: AbortSignal.timeout(apiConfig?.timeoutMs ?? config.server.requestTimeoutMs),
+      });
+      res.status(upstream.status);
+      upstream.headers.forEach((value, key) => {
+        if (!HOP_BY_HOP.has(key.toLowerCase())) res.setHeader(key, value);
+      });
+      const buffer = Buffer.from(await upstream.arrayBuffer());
+      res.setHeader("content-length", String(buffer.length));
+      res.send(buffer);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Proxy invocation failed (${output.name}): ${message}`);
+      res.status(502).json({ ok: false, error: "upstream_error", message });
+    }
+  };
+
+  const notApiOutput = (res: Response, output: OutputConfig): boolean => {
+    if (output.form.includes("api")) return false;
+    res.status(404).json({ ok: false, error: "unsupported", message: `输出 "${output.name}" 没有 API 形态。` });
+    return true;
+  };
+
+  router.all(`${config.server.rest.path}/:output`, apiOutputAuth, (req, res) => {
+    const output = res.locals.output as OutputConfig;
+    if (notApiOutput(res, output)) return;
+    if (output.mode === "proxy") {
+      void proxyHandler(req, res);
+      return;
+    }
+    res.status(404).json({
+      ok: false,
+      error: "unknown_tool",
+      message: `需要指定工具：${config.server.rest.path}/${output.name}/{tool}`,
+    });
+  });
+
+  router.all(`${config.server.rest.path}/:output/*`, apiOutputAuth, (req, res) => {
+    const output = res.locals.output as OutputConfig;
+    if (notApiOutput(res, output)) return;
+    if (output.mode === "proxy") {
+      void proxyHandler(req, res);
+      return;
+    }
+    void invokeHandler(req, res);
+  });
 
   // ---------------------------------------------------------------------------
   // Web admin UI + admin API
@@ -426,12 +526,6 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     return undefined;
   };
 
-  const promptKindOf = (value: unknown): PromptKind | undefined => {
-    const raw = String(value ?? "");
-    if (raw === "mcp" || raw === "rest" || raw === "service" || raw === "add-mcp" || raw === "add-api") return raw;
-    return undefined;
-  };
-
   /** Accepts `{kind, entry}`, `{type: "mcp"|"api", ...}` or a bare entry. */
   const readEntry = (body: unknown): { kind?: SourceKind; entry: unknown } => {
     if (!isPlainObject(body)) return { entry: body };
@@ -450,7 +544,42 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       };
     });
 
+  const outputUrls = (output: OutputConfig) => ({
+    mcp:
+      output.form.includes("mcp") && output.mode !== "proxy"
+        ? `${config.server.mcp.path}/${output.name}`
+        : undefined,
+    api: output.form.includes("api") ? `${config.server.rest.path}/${output.name}` : undefined,
+    openapi:
+      output.mode === "convert" && output.form.includes("api")
+        ? `/openapi/${output.name}.json`
+        : undefined,
+  });
+
+  const outputSummary = (output: OutputConfig) => {
+    const tools = registry.getOutputTools(output);
+    return {
+      ...output,
+      toolCount: tools.length,
+      tools: tools.map((tool) => ({
+        name: tool.name,
+        originalName: tool.originalName,
+        source: tool.source,
+        description: tool.description,
+      })),
+      missingTools: output.sources.flatMap((ref) =>
+        ref.tools
+          .filter((name) => !registry.getToolsForSource(ref.source).some((tool) => tool.originalName === name))
+          .map((name) => `${ref.source}/${name}`),
+      ),
+      urls: outputUrls(output),
+      managed: store.isManagedOutput(output.name),
+    };
+  };
+
   const applyStoreConfig = async (): Promise<void> => {
+    // Output configs live inside the endpoint closures, so rebuild them.
+    await closeEndpoints();
     registry.setConfig(store.config);
     await registry.reload();
   };
@@ -490,11 +619,10 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       uptimeSeconds: Math.round((Date.now() - runtime.startedAt) / 1000),
       tools: registry.toolCount,
       sources: sourceSummaries(),
+      outputs: outputs().map(outputSummary),
       endpoints: {
-        mcp: config.server.mcp.path,
-        rest: config.server.rest.path,
-        openapi: "/openapi.json",
-        tools: "/tools",
+        mcp: `${config.server.mcp.path}/{output}`,
+        rest: `${config.server.rest.path}/{output}`,
       },
       admin: {
         enabled: adminEnabled,
@@ -525,9 +653,9 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
   });
 
   /**
-   * Tools of one source, with schemas, for the admin "接口测试" panel.
-   * Unlike `/tools` this ignores the exposure flags so a source can be tested
-   * before it is publicly exposed.
+   * Tools of one source, with schemas, for the admin "接口测试" panel and the
+   * output editor's tool checkboxes. Ignores exposure so a source can be tested
+   * or published before it is exposed anywhere.
    */
   router.get(`${adminApi}/sources/:kind/:name/tools`, adminAuth, (req: Request, res: Response) => {
     const kind = kindOf(req.params.kind);
@@ -874,6 +1002,260 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // 输出 (published endpoints)
+  // ---------------------------------------------------------------------------
+
+  const validateOutput = (output: OutputConfig): string | undefined => {
+    if (output.sources.length === 0) return "输出至少需要一个来源。";
+    for (const ref of output.sources) {
+      const source = registry.getSource(ref.source);
+      if (!source) return `来源 "${ref.source}" 不存在。`;
+      if (ref.tools.length > 0) {
+        const available = new Set(registry.getToolsForSource(ref.source).map((tool) => tool.originalName));
+        const unknown = ref.tools.filter((name) => !available.has(name));
+        if (unknown.length > 0) return `来源 "${ref.source}" 没有这些工具：${unknown.join(", ")}`;
+      }
+    }
+    if (output.mode === "proxy") {
+      if (output.sources.length !== 1) return "原样透传只能绑定 1 个 API 来源。";
+      if (registry.getSource(output.sources[0].source)?.type !== "openapi") {
+        return "原样透传只能绑定 OpenAPI 来源（MCP 来源请用「镜像」）。";
+      }
+    }
+    if (output.mode === "mirror") {
+      if (output.sources.some((ref) => registry.getSource(ref.source)?.type !== "mcp")) {
+        return "镜像模式只能绑定 MCP 来源。";
+      }
+      const names = registry.getOutputTools(output).map((tool) => tool.name);
+      const duplicates = [...new Set(names.filter((name, index) => names.indexOf(name) !== index))];
+      if (duplicates.length > 0) {
+        return `镜像模式下工具名重复：${duplicates.join(", ")}。请裁掉冲突的工具或换一个组合。`;
+      }
+    }
+    return undefined;
+  };
+
+  router.get(`${adminApi}/outputs`, adminAuth, (_req, res) => {
+    res.json({ ok: true, outputs: outputs().map(outputSummary), sources: sourceSummaries() });
+  });
+
+  router.post(`${adminApi}/outputs`, adminAuth, async (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) && isPlainObject(req.body.output) ? req.body.output : req.body;
+    let output: OutputConfig;
+    try {
+      output = normalizeOutput(body);
+    } catch (error) {
+      res.status(400).json({
+        ok: false,
+        error: "invalid_output",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+    const problem = validateOutput(output);
+    if (problem) {
+      res.status(400).json({ ok: false, error: "invalid_output", message: problem });
+      return;
+    }
+    const saved = await store.upsertOutput(output);
+    await applyStoreConfig();
+    res.json({ ok: true, output: outputSummary(saved) });
+  });
+
+  router.delete(`${adminApi}/outputs/:name`, adminAuth, async (req: Request, res: Response) => {
+    const name = req.params.name;
+    const removed = await store.removeOutput(name);
+    if (!removed) {
+      const exists = Boolean(findOutput(name));
+      res.status(exists ? 400 : 404).json({
+        ok: false,
+        error: exists ? "file_output" : "unknown_output",
+        message: exists ? `输出 "${name}" 来自配置文件，请直接编辑 bridge.config.yaml。` : `没有名为 "${name}" 的输出。`,
+      });
+      return;
+    }
+    await applyStoreConfig();
+    res.json({ ok: true, name });
+  });
+
+  router.get(`${adminApi}/outputs/:name/prompt`, adminAuth, (req: Request, res: Response) => {
+    const output = findOutput(req.params.name);
+    if (!output) {
+      res.status(404).json({ ok: false, error: "unknown_output", message: `没有名为 "${req.params.name}" 的输出。` });
+      return;
+    }
+    const tools = registry.getOutputTools(output);
+    const text = buildPrompt(output, {
+      baseUrl: publicBaseUrl(config, req),
+      mcpPath: config.server.mcp.path,
+      restPath: config.server.rest.path,
+      tools,
+      token: output.token || config.server.auth.mcpToken || config.server.auth.restToken,
+    });
+    res.json({ ok: true, text, toolCount: tools.length });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 一键导入：MCP 配置 / OpenAPI 文档 / URL / 启动命令
+  // ---------------------------------------------------------------------------
+
+  const slug = (value: string): string => {
+    const cleaned = value
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^[^a-z0-9]+/, "")
+      .replace(/-+$/, "")
+      .slice(0, 48);
+    return cleaned || "source";
+  };
+
+  const packageName = (args: string[]): string => {
+    const target = args.find((arg) => !arg.startsWith("-")) ?? "";
+    return target.replace(/^.*\//, "").replace(/@[^@]*$/, "") || target;
+  };
+
+  const claudeMcpEntry = (name: string, raw: unknown): Record<string, unknown> => {
+    const value = isPlainObject(raw) ? raw : {};
+    if (typeof value.command === "string") {
+      return {
+        name,
+        description: typeof value.description === "string" ? value.description : undefined,
+        transport: {
+          type: "stdio",
+          command: value.command,
+          args: Array.isArray(value.args) ? value.args.map(String) : [],
+          env: isPlainObject(value.env) ? value.env : {},
+        },
+      };
+    }
+    if (typeof value.url === "string") {
+      return {
+        name,
+        description: typeof value.description === "string" ? value.description : undefined,
+        transport: {
+          type: value.type === "sse" ? "sse" : "http",
+          url: value.url,
+          headers: isPlainObject(value.headers) ? value.headers : {},
+        },
+      };
+    }
+    return { name, ...value };
+  };
+
+  type ImportPlan =
+    | { kind: "mcp" | "api"; entry: Record<string, unknown> }
+    | { kind: "mcp-batch"; entries: Record<string, unknown>[] }
+    | { kind: "api-spec"; name: string; text: string };
+
+  const detectImport = async (text: string): Promise<ImportPlan> => {
+    let doc: unknown;
+    const json = safeJsonParse(text);
+    if (json.ok) doc = json.value;
+    else if (/^[^\s]+:\s/m.test(text) || text.startsWith("{")) {
+      try {
+        doc = parseYaml(text);
+      } catch {
+        doc = undefined;
+      }
+    }
+
+    if (isPlainObject(doc)) {
+      if (isPlainObject(doc.mcpServers)) {
+        return {
+          kind: "mcp-batch",
+          entries: Object.entries(doc.mcpServers).map(([name, raw]) => claudeMcpEntry(name, raw)),
+        };
+      }
+      if (doc.openapi || doc.swagger || isPlainObject(doc.paths)) {
+        const title = isPlainObject(doc.info) && typeof doc.info.title === "string" ? doc.info.title : "openapi";
+        return { kind: "api-spec", name: slug(title), text };
+      }
+      if (isPlainObject(doc.transport) || doc.type === "mcp") {
+        const name = typeof doc.name === "string" ? doc.name : "mcp";
+        return { kind: "mcp", entry: { ...doc, name: slug(name) } };
+      }
+      if (typeof doc.command === "string" || typeof doc.url === "string") {
+        const seed =
+          typeof doc.name === "string"
+            ? doc.name
+            : typeof doc.url === "string"
+              ? new URL(doc.url).hostname
+              : packageName(Array.isArray(doc.args) ? doc.args.map(String) : []);
+        return { kind: "mcp", entry: claudeMcpEntry(slug(seed), doc) };
+      }
+      if (typeof doc.spec === "string" || doc.type === "api") {
+        return { kind: "api", entry: { ...doc, name: slug(typeof doc.name === "string" ? doc.name : "api") } };
+      }
+    }
+
+    if (/^https?:\/\//i.test(text)) {
+      const url = new URL(text);
+      if (/\/(mcp|sse)\/?$/i.test(url.pathname) || /[?&](mcp|sse)=/i.test(url.search)) {
+        const type = /sse/i.test(url.pathname) ? "sse" : "http";
+        return { kind: "mcp", entry: { name: slug(url.hostname), transport: { type, url: text, headers: {} } } };
+      }
+      try {
+        const response = await fetch(text, { signal: AbortSignal.timeout(10_000) });
+        const body = await response.text();
+        const parsed = safeJsonParse(body);
+        if (parsed.ok && isPlainObject(parsed.value) && (parsed.value.openapi || parsed.value.swagger || isPlainObject(parsed.value.paths))) {
+          const title = isPlainObject(parsed.value.info) && typeof parsed.value.info.title === "string" ? parsed.value.info.title : url.hostname;
+          return { kind: "api-spec", name: slug(title), text: body };
+        }
+      } catch {
+        // Not an OpenAPI document; fall through to a remote MCP server.
+      }
+      return { kind: "mcp", entry: { name: slug(url.hostname), transport: { type: "http", url: text, headers: {} } } };
+    }
+
+    const command = text.split(/\s+/).filter(Boolean);
+    if (command.length > 0) {
+      return {
+        kind: "mcp",
+        entry: {
+          name: slug(packageName(command.slice(1))),
+          transport: { type: "stdio", command: command[0], args: command.slice(1), env: {} },
+        },
+      };
+    }
+    throw new ConfigError("无法识别：请粘贴 MCP 配置 JSON、OpenAPI 文档、URL 或启动命令。");
+  };
+
+  router.post(`${adminApi}/import`, adminAuth, async (req: Request, res: Response) => {
+    const body = isPlainObject(req.body) ? req.body : {};
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text) {
+      res.status(400).json({ ok: false, error: "invalid_request", message: "需要 text（粘贴内容）。" });
+      return;
+    }
+    try {
+      const plan = await detectImport(text);
+      const added: Array<{ kind: SourceKind; name: string }> = [];
+      if (plan.kind === "mcp-batch") {
+        for (const entry of plan.entries) {
+          const saved = await store.upsert("mcp", entry);
+          added.push({ kind: "mcp", name: saved.name });
+        }
+      } else if (plan.kind === "api-spec") {
+        const specPath = await store.writeSpecFile(plan.name, plan.text);
+        const saved = await store.upsert("api", { name: plan.name, spec: specPath });
+        added.push({ kind: "api", name: saved.name });
+      } else {
+        const saved = await store.upsert(plan.kind, plan.entry);
+        added.push({ kind: plan.kind, name: saved.name });
+      }
+      await applyStoreConfig();
+      res.json({ ok: true, added, outputs: added.map((item) => slug(item.name)) });
+    } catch (error) {
+      res.status(400).json({
+        ok: false,
+        error: "import_failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
   router.post(`${adminApi}/test`, adminAuth, async (req: Request, res: Response) => {
     const { kind, entry } = readEntry(req.body);
     if (!kind) {
@@ -956,40 +1338,6 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     await store.refresh();
     await applyStoreConfig();
     res.json({ ok: true, tools: registry.toolCount, sources: sourceSummaries() });
-  });
-
-  router.get(`${adminApi}/prompt`, adminAuth, (req: Request, res: Response) => {
-    const kind = promptKindOf(req.query.kind);
-    if (!kind) {
-      res.status(400).json({
-        ok: false,
-        error: "invalid_kind",
-        message: "kind 必须是 mcp | rest | add-mcp | add-api。",
-      });
-      return;
-    }
-    const source = typeof req.query.source === "string" && req.query.source ? req.query.source : undefined;
-    const surface = kind === "rest" ? "rest" : "mcp";
-    const tools = registry.getTools(surface, source);
-    const text = buildPrompt(kind, {
-      baseUrl: publicBaseUrl(config, req),
-      mcpPath: config.server.mcp.path,
-      restPath: config.server.rest.path,
-      mcpToken: config.server.auth.mcpToken,
-      restToken: config.server.auth.restToken,
-      sourceToken: source ? sourceAccessToken(source) : "",
-      configFile: path.join(config.configDir, "bridge.config.yaml"),
-      tools,
-      source,
-      hint: {
-        name: typeof req.query.name === "string" ? req.query.name : "",
-        command: typeof req.query.command === "string" ? req.query.command : "",
-        url: typeof req.query.url === "string" ? req.query.url : "",
-        spec: typeof req.query.spec === "string" ? req.query.spec : "",
-        note: typeof req.query.note === "string" ? req.query.note : "",
-      },
-    });
-    res.json({ ok: true, kind, source, text, toolCount: tools.length });
   });
 
   router.post("/admin/reload", adminAuth, async (_req: Request, res: Response) => {

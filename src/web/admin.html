@@ -164,6 +164,12 @@
       .prompt-card { display: flex; flex-direction: column; gap: 10px; }
       .prompt-card .head { display: flex; align-items: flex-start; gap: 10px; }
       .prompt-card .head h2 { flex: 1; }
+      .out-source { border: 1px solid var(--border-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+      .out-source.picked { border-color: rgba(109,140,255,0.45); background: rgba(109,140,255,0.05); }
+      .out-source > .checkline { margin-bottom: 6px; }
+      .out-tools { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-left: 22px; }
+      .out-tools .checkline { margin: 0; }
+      .out-tools .out-tool label { font-family: var(--mono); font-size: 12px; }
       pre {
         margin: 0; background: var(--bg-soft); border: 1px solid var(--border-soft); border-radius: 10px;
         padding: 12px; overflow: auto; max-height: 320px; font-family: var(--mono); font-size: 12px;
@@ -323,7 +329,7 @@
     <header>
       <div class="brand">
         <div class="logo">⇄</div>
-        <div>MCP ⇄ API 网关<br /><small>管理台 · 来源 / 工作台 / 接入提示词</small></div>
+        <div>MCP ⇄ API 网关<br /><small>管理台 · 来源 / 输出 / 工作台</small></div>
       </div>
       <div class="spacer"></div>
       <span class="chip" id="base-chip">…</span>
@@ -337,8 +343,8 @@
     <nav class="tabs">
       <button data-tab="overview" class="active">概览</button>
       <button data-tab="sources">来源</button>
+      <button data-tab="outputs">输出</button>
       <button data-tab="workspace">工作台</button>
-      <button data-tab="prompt">接入提示词</button>
     </nav>
 
     <main>
@@ -517,17 +523,11 @@
             </div>
 
             <details class="adv">
-              <summary>高级选项（暴露面 / 访问令牌 / 超时）</summary>
-              <div class="checkline">
-                <label><input type="checkbox" id="mcp-rest" checked /> 暴露为 REST</label>
-                <label><input type="checkbox" id="mcp-mcp" checked /> 暴露为 MCP</label>
-              </div>
-              <div class="three-col">
-                <label class="field"><span>工具名前缀</span><input id="mcp-prefix" type="text" placeholder="（默认空）" /></label>
+              <summary>高级选项（超时 / 缓存）</summary>
+              <div class="two-col">
                 <label class="field"><span>工具列表缓存 (ms)</span><input id="mcp-cache" type="number" placeholder="15000" /></label>
                 <label class="field"><span>调用超时 (ms)</span><input id="mcp-timeout" type="number" placeholder="120000" /></label>
               </div>
-              <label class="field"><span>访问令牌（可选；设置后该来源端点只认这个 token）</span><input id="mcp-access-token" type="password" placeholder="留空 = 仅用全局 token" /></label>
             </details>
 
             <div class="form-actions">
@@ -561,22 +561,11 @@
             </div>
 
             <details class="adv">
-              <summary>高级选项（额外请求头 / 过滤 / 暴露面 / 访问令牌 / 超时）</summary>
+              <summary>高级选项（额外请求头 / 过滤 / 超时）</summary>
               <label class="field"><span>额外请求头（<b>非认证</b>，每行 <code>Header: value</code>，如 User-Agent）</span><textarea id="api-headers" style="min-height: 56px" placeholder="User-Agent: mcp-api-bridge"></textarea></label>
-              <span class="checkline" style="margin-bottom: 8px">
-                <label><input type="checkbox" id="api-allow-cred-switch" /> 允许调用方切换凭证（REST 请求头 <code>x-bridge-credential</code>，仅限本来源引用的凭证）</label>
-              </span>
               <label class="field"><span>只包含（逗号分隔，支持 <code>*</code>，如 <code>GET /pet/*</code>）</span><input id="api-include" type="text" placeholder="留空 = 全部" /></label>
               <label class="field"><span>排除（逗号分隔）</span><input id="api-exclude" type="text" placeholder="DELETE /pet/*" /></label>
-              <div class="checkline">
-                <label><input type="checkbox" id="api-rest" checked /> 暴露为 REST</label>
-                <label><input type="checkbox" id="api-mcp" checked /> 暴露为 MCP</label>
-              </div>
-              <div class="two-col">
-                <label class="field"><span>工具名前缀</span><input id="api-prefix" type="text" placeholder="（默认空）" /></label>
-                <label class="field"><span>请求超时 (ms)</span><input id="api-timeout" type="number" placeholder="60000" /></label>
-              </div>
-              <label class="field"><span>访问令牌（可选；设置后该来源端点只认这个 token，聚合端点仅认全局 token）</span><input id="api-access-token" type="password" placeholder="留空 = 仅用全局 token" /></label>
+              <label class="field"><span>请求超时 (ms)</span><input id="api-timeout" type="number" placeholder="60000" /></label>
             </details>
 
             <div class="form-actions">
@@ -588,18 +577,17 @@
             <div class="result" id="api-result"></div>
           </div>
 
-          <!-- JSON 导入 -->
+          <!-- 一键导入 -->
           <div class="card" id="form-json" hidden>
-            <h2>从 JSON 导入来源</h2>
+            <h2>一键导入</h2>
             <div class="hint">
-              支持：单个来源 <code>{ "type": "mcp" | "api", ... }</code>、批量
-              <code>{ "mcpServers": [...], "apis": [...] }</code>，以及 MCP 客户端配置
-              <code>{ "mcpServers": { "name": { "command": "npx", ... } } }</code>（可直接粘贴 Claude Desktop / Cursor 的配置）。
+              粘贴任意一种即可：MCP 客户端配置（<code>{ "mcpServers": { ... } }</code>，支持批量）、OpenAPI / Swagger
+              文档（JSON 或 YAML 正文）、文档 URL，或一条启动命令（如 <code>npx -y @scope/server</code>）。
+              导入后会自动生成一个同名输出。
             </div>
             <textarea id="import-text" style="min-height: 300px" placeholder='{ "mcpServers": { "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"] } } }'></textarea>
             <div class="form-actions">
-              <button class="primary" id="import-run">解析并导入</button>
-              <button id="import-test">仅测试（不保存）</button>
+              <button class="primary" id="import-run">识别并导入</button>
               <button class="ghost" id="import-example">填入示例</button>
             </div>
             <div class="result" id="import-result"></div>
@@ -640,68 +628,58 @@
           </details>
       </section>
 
-      <!-- ================= 提示词 ================= -->
-      <section id="tab-prompt" hidden>
+      <!-- ================= 输出（发布的端点） ================= -->
+      <section id="tab-outputs" hidden>
         <div class="card" style="margin-bottom: 16px">
-          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
-            <button id="prompt-refresh">重新生成</button>
-            <span class="sub">复制后直接粘给 Claude / Cursor / ChatGPT 等 AI 工具即可。</span>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+            <div style="flex: 1; min-width: 260px">
+              <h2 style="margin: 0">输出</h2>
+              <div class="hint" style="margin: 4px 0 0">
+                输出是对外发布的一套端点：挑来源、裁工具、选形态（MCP / API），一个输出可以组合多个来源。
+                「转换」把工具名统一成 <code>{source}__{tool}</code>；「镜像」保持 MCP 原名；「原样透传」按上游路径转发 API 请求。
+              </div>
+            </div>
+            <button id="output-new" class="primary">＋ 新建输出</button>
           </div>
         </div>
 
-        <h2 style="margin: 4px 0 6px; font-size: 15px">按服务：给 AI 的独立访问提示词</h2>
-        <div class="hint" style="margin: 0 0 12px">
-          每个服务都是一套独立的 MCP / API。复制某个服务的提示词给 AI，它就只能看到并调用该服务的工具（含单来源端点）。
-        </div>
-        <div id="prompt-services" class="grid cols-2" style="margin-bottom: 20px"></div>
+        <div id="output-cards" class="grid cols-2" style="margin-bottom: 16px"></div>
 
-        <h2 style="margin: 4px 0 10px; font-size: 15px">通用连接提示词</h2>
-        <div class="grid cols-2">
-          <div class="card prompt-card">
-            <div class="head">
-              <h2>① 让 AI 通过 MCP 接入网关</h2>
-              <button class="primary" data-copy="mcp">复制</button>
-            </div>
-            <div class="hint">包含客户端 JSON 配置、端点、鉴权和工具清单。</div>
-            <pre id="prompt-mcp">生成中…</pre>
+        <div class="card" id="output-editor" hidden>
+          <h2 id="output-editor-title">新建输出</h2>
+          <div class="two-col">
+            <label class="field"><span>输出名 <em>*</em>（用于 URL，字母/数字/._-）</span><input id="output-name" type="text" placeholder="my-tools" /></label>
+            <label class="field">
+              <span>形态</span>
+              <select id="output-mode">
+                <option value="convert">转换（工具逐个映射，MCP + API）</option>
+                <option value="mirror">镜像（保持 MCP 上游工具名，仅 MCP）</option>
+                <option value="proxy">原样透传（按上游路径转发，仅 API，限 1 个 API 来源）</option>
+              </select>
+            </label>
           </div>
 
-          <div class="card prompt-card">
-            <div class="head">
-              <h2>② 让 AI 通过 REST / OpenAPI 接入</h2>
-              <button class="primary" data-copy="rest">复制</button>
-            </div>
-            <div class="hint">适合不支持 MCP 的模型或自动化流程。</div>
-            <pre id="prompt-rest">生成中…</pre>
+          <div class="checkline" id="output-forms">
+            <label><input type="checkbox" id="output-form-mcp" checked /> MCP 形态</label>
+            <label><input type="checkbox" id="output-form-api" checked /> API 形态</label>
           </div>
 
-          <div class="card prompt-card">
-            <div class="head">
-              <h2>③ 让 AI 帮我生成「新增 MCP 来源」配置</h2>
-              <button class="primary" data-copy="add-mcp">复制</button>
-            </div>
-            <div class="hint">把需求填进去，生成的 JSON 可直接粘到「来源 → JSON 导入」。</div>
-            <div class="inline-fields">
-              <label class="field"><span>名称</span><input id="hint-mcp-name" type="text" placeholder="my-server" /></label>
-              <label class="field"><span>启动命令 / 地址</span><input id="hint-mcp-target" type="text" placeholder="npx -y @scope/server" /></label>
-              <label class="field"><span>补充说明</span><input id="hint-mcp-note" type="text" placeholder="需要读取 /data 目录" /></label>
-            </div>
-            <pre id="prompt-add-mcp">生成中…</pre>
+          <label class="field">
+            <span>来源与工具（取消勾选的工具不会出现在这个输出里；一个都不勾 = 该来源全部工具）</span>
+          </label>
+          <div id="output-sources" class="hint">加载中…</div>
+
+          <div class="two-col" style="margin-top: 12px">
+            <label class="field"><span>访问 Token（可选；留空 = 用全局 Token，再留空 = 无需鉴权）</span><input id="output-token" type="password" placeholder="留空 = 继承全局 Token" /></label>
+            <label class="field" id="output-cred-wrap"><span>凭证切换</span><span class="checkline" style="margin: 6px 0 0"><label><input type="checkbox" id="output-allow-cred" /> 允许调用方用 <code>x-bridge-credential</code> 切换凭证</label></span></label>
           </div>
 
-          <div class="card prompt-card">
-            <div class="head">
-              <h2>④ 让 AI 帮我生成「新增 OpenAPI 来源」配置</h2>
-              <button class="primary" data-copy="add-api">复制</button>
-            </div>
-            <div class="hint">同样输出可导入的 JSON。</div>
-            <div class="inline-fields">
-              <label class="field"><span>名称</span><input id="hint-api-name" type="text" placeholder="my-service" /></label>
-              <label class="field"><span>文档地址</span><input id="hint-api-spec" type="text" placeholder="https://example.com/openapi.json" /></label>
-              <label class="field"><span>补充说明</span><input id="hint-api-note" type="text" placeholder="需要 Bearer Token" /></label>
-            </div>
-            <pre id="prompt-add-api">生成中…</pre>
+          <div class="form-actions">
+            <button class="primary" id="output-save">保存输出</button>
+            <button class="ghost" id="output-cancel">取消</button>
+            <span class="sub" id="output-editor-status"></span>
           </div>
+          <div class="result" id="output-result"></div>
         </div>
       </section>
 
@@ -868,9 +846,9 @@
               section.hidden = section.id !== `tab-${button.dataset.tab}`;
             }
             const tab = button.dataset.tab;
-            if (tab === "prompt") loadPrompts();
             if (tab === "overview") loadOverview();
             if (tab === "sources") loadCredentials();
+            if (tab === "outputs") loadOutputs();
             if (tab === "workspace") showWorkspacePanel(wsState.panel);
           });
         });
@@ -1721,11 +1699,6 @@
           const entry = {
             name,
             description: $("mcp-desc").value.trim() || undefined,
-            exposure: {
-              rest: $("mcp-rest").checked,
-              mcp: $("mcp-mcp").checked,
-              prefix: $("mcp-prefix").value.trim(),
-            },
           };
           if (type === "stdio") {
             const command = $("mcp-command").value.trim();
@@ -1745,8 +1718,6 @@
           const timeout = Number($("mcp-timeout").value);
           if (Number.isFinite(cache) && cache > 0) entry.cacheTtlMs = cache;
           if (Number.isFinite(timeout) && timeout > 0) entry.timeoutMs = timeout;
-          const token = $("mcp-access-token").value.trim();
-          if (token) entry.accessToken = token;
           return entry;
         }
 
@@ -1761,12 +1732,8 @@
           $("mcp-env").value = envText(transport.env);
           $("mcp-url").value = transport.url || "";
           $("mcp-headers").value = kvText(transport.headers);
-          $("mcp-rest").checked = entry.exposure ? entry.exposure.rest !== false : true;
-          $("mcp-mcp").checked = entry.exposure ? entry.exposure.mcp !== false : true;
-          $("mcp-prefix").value = entry.exposure?.prefix || "";
           $("mcp-cache").value = entry.cacheTtlMs || "";
           $("mcp-timeout").value = entry.timeoutMs || "";
-          $("mcp-access-token").value = entry.accessToken || "";
           clearResult("mcp-result");
           $("mcp-save").textContent = state.editing.name && state.editing.kind === "mcp" ? "更新来源" : "保存并上线";
         }
@@ -1774,7 +1741,7 @@
         $("mcp-clear").addEventListener("click", () => {
           state.editing = { kind: null, name: null };
           updateModeLabels();
-          fillMcpForm({ exposure: { rest: true, mcp: true, prefix: "" } });
+          fillMcpForm({});
           $("mcp-name").value = "";
           $("mcp-desc").value = "";
           $("mcp-command").value = "";
@@ -1846,15 +1813,8 @@
             // credentials from the source being edited instead of erasing them.
             security: state.editing.security && Object.keys(state.editing.security).length ? state.editing.security : {},
             credentialRefs: checkedRefs,
-            allowCredentialSwitch: $("api-allow-cred-switch").checked,
-            accessToken: $("api-access-token").value.trim() || undefined,
             include: splitList($("api-include").value),
             exclude: splitList($("api-exclude").value),
-            exposure: {
-              rest: $("api-rest").checked,
-              mcp: $("api-mcp").checked,
-              prefix: $("api-prefix").value.trim(),
-            },
           };
           if (isText) entry.specText = specRaw;
           const timeout = Number($("api-timeout").value);
@@ -1868,15 +1828,10 @@
           $("api-spec-input").value = entry.spec || entry.specText || "";
           $("api-baseurl").value = entry.baseUrl || "";
           $("api-headers").value = kvText(entry.headers);
-          $("api-allow-cred-switch").checked = entry.allowCredentialSwitch === true;
-          $("api-access-token").value = entry.accessToken || "";
           state.editing.security = entry.security && Object.keys(entry.security).length ? entry.security : undefined;
           renderApiCredentialChoices(entry.credentialRefs || []);
           $("api-include").value = (entry.include || []).join(", ");
           $("api-exclude").value = (entry.exclude || []).join(", ");
-          $("api-rest").checked = entry.exposure ? entry.exposure.rest !== false : true;
-          $("api-mcp").checked = entry.exposure ? entry.exposure.mcp !== false : true;
-          $("api-prefix").value = entry.exposure?.prefix || "";
           $("api-timeout").value = entry.timeoutMs || "";
           clearResult("api-result");
           $("api-save").textContent = state.editing.name && state.editing.kind === "api" ? "更新来源" : "保存并上线";
@@ -1890,8 +1845,6 @@
           $("api-spec-input").value = "";
           $("api-baseurl").value = "";
           $("api-headers").value = "";
-          $("api-allow-cred-switch").checked = false;
-          $("api-access-token").value = "";
           renderApiCredentialChoices([]);
           $("api-include").value = "";
           $("api-exclude").value = "";
@@ -2668,216 +2621,352 @@
         $("transform-save").addEventListener("click", saveTransform);
         $("transform-delete").addEventListener("click", deleteTransform);
 
-        // ---------------- prompts ----------------
-        async function fetchPromptFor(kind, source) {
-          const params = new URLSearchParams({ kind });
-          if (source && (kind === "mcp" || kind === "rest" || kind === "service")) params.set("source", source);
-          if (kind === "add-mcp") {
-            params.set("name", $("hint-mcp-name").value.trim());
-            params.set("command", $("hint-mcp-target").value.trim());
-            params.set("note", $("hint-mcp-note").value.trim());
-          }
-          if (kind === "add-api") {
-            params.set("name", $("hint-api-name").value.trim());
-            params.set("spec", $("hint-api-spec").value.trim());
-            params.set("note", $("hint-api-note").value.trim());
-          }
-          const data = await api(`/prompt?${params.toString()}`);
-          return data.text || "";
+        // ---------------- outputs ----------------
+        const outState = { outputs: [], sources: [], editing: "", tools: {}, toolPromises: {} };
+
+        const MODE_LABEL = { convert: "转换", mirror: "镜像", proxy: "原样透传" };
+        const absolute = (pathname) => `${String(BOOT.baseUrl || location.origin).replace(/\/+$/, "")}${pathname}`;
+
+        function outputMcpSnippet(output) {
+          const token = output.token || "";
+          return JSON.stringify(
+            {
+              mcpServers: {
+                [output.name]: {
+                  type: "http",
+                  url: absolute(`${BOOT.mcpPath}/${output.name}`),
+                  ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+                },
+              },
+            },
+            null,
+            2,
+          );
         }
 
-        function fetchPrompt(kind) {
-          return fetchPromptFor(kind);
+        function outputCurlSnippet(output) {
+          const token = output.token ? ` \\\n  -H 'authorization: Bearer ${output.token}'` : "";
+          if (output.mode === "proxy") return `curl '${absolute(`${BOOT.restPath}/${output.name}/`)}'${token}`;
+          const tool = (output.tools || [])[0];
+          return `curl -X POST '${absolute(`${BOOT.restPath}/${output.name}/`)}${tool ? tool.name : "{tool}"}' \\\n  -H 'content-type: application/json'${token} \\\n  -d '{}'`;
         }
 
-        /** 为每个来源生成一份独立提示词（只含该服务的工具与单来源端点）。 */
-        async function loadServicePrompts() {
-          const box = $("prompt-services");
-          if (!box) return;
+        function renderOutputCards() {
+          const box = $("output-cards");
           box.innerHTML = "";
-          const sources = state.sources;
-          if (!sources.length) {
-            box.innerHTML = '<div class="empty">还没有来源，先去「来源」接入一个。</div>';
+          if (!outState.outputs.length) {
+            box.innerHTML = '<div class="card empty">还没有输出。点「新建输出」发布第一套端点。</div>';
             return;
           }
-          for (const source of sources) {
+          for (const output of outState.outputs) {
             const card = document.createElement("div");
             card.className = "card prompt-card";
+
             const head = document.createElement("div");
             head.className = "head";
-            const h2 = document.createElement("h2");
-            h2.textContent = `服务：${source.name}（${source.toolCount ?? 0} 个工具）`;
-            const copy = document.createElement("button");
-            copy.className = "primary";
-            copy.textContent = "复制";
-            let text = "";
-            copy.addEventListener("click", async () => {
-              copy.disabled = true;
+            const title = document.createElement("h2");
+            title.textContent = output.name;
+            const actions = document.createElement("div");
+            actions.className = "row-actions";
+            const edit = document.createElement("button");
+            edit.textContent = "编辑";
+            edit.addEventListener("click", () => editOutput(output));
+            const del = document.createElement("button");
+            del.className = "danger";
+            del.textContent = "删除";
+            del.addEventListener("click", () => deleteOutput(output));
+            actions.append(edit, del);
+            head.append(title, actions);
+
+            const badges = document.createElement("div");
+            badges.className = "checkline";
+            badges.append(
+              badge(MODE_LABEL[output.mode] || output.mode, "mcp"),
+              badge(output.form.includes("mcp") ? "MCP" : "", output.form.includes("mcp") ? "api" : ""),
+              badge(output.form.includes("api") ? "API" : "", output.form.includes("api") ? "ok" : ""),
+              badge(`${output.toolCount ?? 0} 个工具`, ""),
+              badge(output.token ? "独立 Token" : "继承全局 Token", output.token ? "ok" : ""),
+            );
+
+            const hint = document.createElement("div");
+            hint.className = "hint";
+            hint.textContent = output.sources
+              .map((ref) => `${ref.source}${ref.tools.length ? `（${ref.tools.length} 个工具）` : "（全部工具）"}`)
+              .join(" + ");
+
+            const urls = [];
+            if (output.urls.mcp) urls.push(`MCP: ${absolute(output.urls.mcp)}`);
+            if (output.urls.api) urls.push(`API: ${absolute(output.urls.api)}`);
+            if (output.urls.openapi) urls.push(`OpenAPI: ${absolute(output.urls.openapi)}`);
+            const pre = document.createElement("pre");
+            pre.textContent = urls.join("\n") || "（没有可用形态）";
+
+            const copyRow = document.createElement("div");
+            copyRow.className = "form-actions";
+            const copyMcp = document.createElement("button");
+            copyMcp.className = "primary";
+            copyMcp.textContent = "复制 MCP 配置";
+            copyMcp.hidden = !output.urls.mcp;
+            copyMcp.addEventListener("click", () => copyText(outputMcpSnippet(output), `${output.name} 的 MCP 配置`));
+            const copyCurl = document.createElement("button");
+            copyCurl.textContent = "复制调用示例";
+            copyCurl.hidden = !output.urls.api;
+            copyCurl.addEventListener("click", () => copyText(outputCurlSnippet(output), `${output.name} 的调用示例`));
+            const copyPrompt = document.createElement("button");
+            copyPrompt.textContent = "复制 AI 提示词";
+            copyPrompt.addEventListener("click", async () => {
+              copyPrompt.disabled = true;
               try {
-                if (!text) text = await fetchPromptFor("service", source.name);
-                await copyText(text, `${source.name} 的接入提示词`);
+                const data = await api(`/outputs/${encodeURIComponent(output.name)}/prompt`);
+                await copyText(data.text, `${output.name} 的 AI 提示词`);
               } catch (error) {
                 toast(`生成失败：${error.message}`, "err");
               } finally {
-                copy.disabled = false;
+                copyPrompt.disabled = false;
               }
             });
-            head.appendChild(h2);
-            head.appendChild(copy);
-            card.appendChild(head);
-            const hint = document.createElement("div");
-            hint.className = "hint";
-            hint.textContent = "只含该服务的工具与单来源端点，给 AI 可限定其访问范围。";
-            card.appendChild(hint);
-            const pre = document.createElement("pre");
-            pre.textContent = "生成中…";
-            card.appendChild(pre);
+            copyRow.append(copyMcp, copyCurl, copyPrompt);
+
+            card.append(head, badges, hint, pre, copyRow);
             box.appendChild(card);
-            try {
-              text = await fetchPromptFor("service", source.name);
-              pre.textContent = text;
-            } catch (error) {
-              pre.textContent = `生成失败：${error.message}`;
-            }
           }
         }
 
-        async function loadPrompts() {
-          for (const kind of ["mcp", "rest", "add-mcp", "add-api"]) {
-            const box = $(`prompt-${kind}`);
-            try {
-              box.textContent = await fetchPrompt(kind);
-            } catch (error) {
-              box.textContent = `生成失败：${error.message}\n（如果是 401，请先在上方保存管理员 Token）`;
-            }
-          }
-          await loadServicePrompts();
-        }
-
-        document.querySelectorAll("[data-copy]").forEach((button) => {
-          button.addEventListener("click", async () => {
-            const kind = button.dataset.copy;
-            button.disabled = true;
-            try {
-              const text = await fetchPrompt(kind);
-              $(`prompt-${kind}`).textContent = text;
-              await copyText(text, "提示词");
-            } catch (error) {
-              toast(`生成失败：${error.message}`, "err");
-            } finally {
-              button.disabled = false;
-            }
-          });
-        });
-
-        $("prompt-refresh").addEventListener("click", loadPrompts);
-        ["hint-mcp-name", "hint-mcp-target", "hint-mcp-note", "hint-api-name", "hint-api-spec", "hint-api-note"].forEach((id) => {
-          $(id).addEventListener("change", () => loadPrompts());
-        });
-
-        // ---------------- JSON import ----------------
-        function mcpEntryFromClientConfig(name, value) {
-          if (!value || typeof value !== "object") return null;
-          if (value.transport) return { name, ...value };
-          if (value.command) {
-            return {
-              name,
-              description: value.description,
-              transport: { type: "stdio", command: value.command, args: value.args || [], env: value.env || {} },
-              exposure: value.exposure,
-            };
-          }
-          if (value.url) {
-            return {
-              name,
-              description: value.description,
-              transport: {
-                type: value.type === "sse" ? "sse" : "http",
-                url: value.url,
-                headers: value.headers || {},
-              },
-              exposure: value.exposure,
-            };
-          }
-          return { name, ...value };
-        }
-
-        function parseImport(text) {
-          let parsed;
+        async function loadOutputs() {
           try {
-            parsed = JSON.parse(text);
+            const data = await api("/outputs");
+            outState.outputs = data.outputs || [];
+            outState.sources = data.sources || [];
+            renderOutputCards();
           } catch (error) {
-            throw new Error(`JSON 解析失败：${error.message}`);
+            $("output-cards").innerHTML = `<div class="card empty">无法加载输出：${escapeHtml(error.message || "未知错误")}</div>`;
           }
-          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-            throw new Error("顶层必须是一个 JSON 对象");
-          }
-          const items = [];
-          const push = (kind, entry) => {
-            if (entry && typeof entry === "object") items.push({ kind, entry });
-          };
-
-          if (Array.isArray(parsed.mcpServers)) {
-            for (const entry of parsed.mcpServers) push("mcp", entry);
-          } else if (parsed.mcpServers && typeof parsed.mcpServers === "object") {
-            for (const [name, value] of Object.entries(parsed.mcpServers)) {
-              const entry = mcpEntryFromClientConfig(name, value);
-              if (entry) push("mcp", entry);
-            }
-          }
-          if (Array.isArray(parsed.apis)) {
-            for (const entry of parsed.apis) push("api", entry);
-          }
-          if (Array.isArray(parsed.sources)) {
-            for (const entry of parsed.sources) {
-              push(entry.type === "api" || entry.type === "openapi" ? "api" : "mcp", entry.entry || entry);
-            }
-          }
-          if (items.length === 0) {
-            const type = String(parsed.type || parsed.kind || "").toLowerCase();
-            const kind = type === "api" || type === "openapi" || type === "rest" ? "api" : "mcp";
-            const { type: _t, kind: _k, entry: inner, ...rest } = parsed;
-            push(kind, inner && typeof inner === "object" ? { ...inner } : rest);
-          }
-          if (items.length === 0) throw new Error("没有解析到任何来源条目");
-          return items;
         }
 
-        async function runImport(onlyTest) {
-          const button = onlyTest ? $("import-test") : $("import-run");
-          button.disabled = true;
-          try {
-            const items = parseImport($("import-text").value);
-            const lines = [];
-            let failures = 0;
-            for (const item of items) {
+        function toolsOf(sourceName) {
+          if (!outState.toolPromises[sourceName]) {
+            outState.toolPromises[sourceName] = (async () => {
+              const source = outState.sources.find((item) => item.name === sourceName) || sourceConfig(sourceName);
+              if (!source) return [];
+              const data = await api(`/sources/${sourceKind(source)}/${encodeURIComponent(sourceName)}/tools`);
+              return Array.isArray(data.tools) ? data.tools : [];
+            })();
+          }
+          return outState.toolPromises[sourceName];
+        }
+
+        async function renderOutputSources(output) {
+          const box = $("output-sources");
+          const mode = $("output-mode").value;
+          const chosen = new Map((output?.sources || []).map((ref) => [ref.source, ref.tools || []]));
+          box.innerHTML = "";
+          if (!outState.sources.length) {
+            box.textContent = "还没有来源，先去「来源」接入一个。";
+            return;
+          }
+          box.className = "";
+          for (const source of outState.sources) {
+            const block = document.createElement("div");
+            block.className = "out-source";
+            block.dataset.source = source.name;
+
+            const line = document.createElement("label");
+            line.className = "checkline";
+            const include = document.createElement("input");
+            include.type = "checkbox";
+            include.dataset.role = "source";
+            include.checked = mode === "proxy" ? chosen.has(source.name) : chosen.has(source.name);
+            line.append(include, document.createTextNode(` ${source.name}（${source.type === "mcp" ? "MCP" : "OpenAPI"} · ${source.toolCount ?? 0} 个工具）`));
+            block.appendChild(line);
+
+            const toolsBox = document.createElement("div");
+            toolsBox.className = "out-tools";
+            block.appendChild(toolsBox);
+            box.appendChild(block);
+
+            const renderTools = async () => {
+              if (mode === "proxy") {
+                toolsBox.innerHTML = '<span class="hint">透传按上游路径转发，不按工具裁剪。</span>';
+                return;
+              }
+              toolsBox.innerHTML = '<span class="hint">加载工具…</span>';
               try {
-                if (onlyTest) {
-                  const result = await api("/test", { method: "POST", body: JSON.stringify(item) });
-                  lines.push(`✅ ${result.kind}:${result.name} — ${result.toolCount} 个工具（${result.durationMs} ms）`);
-                } else {
-                  const result = await api("/sources", { method: "POST", body: JSON.stringify(item) });
-                  lines.push(`✅ ${item.kind}:${result.name} 已上线，当前共 ${result.tools} 个工具`);
+                const tools = await toolsOf(source.name);
+                const selected = new Set(chosen.get(source.name) || []);
+                toolsBox.innerHTML = "";
+                if (!tools.length) {
+                  toolsBox.innerHTML = '<span class="hint">该来源没有工具。</span>';
+                  return;
+                }
+                const allLabel = document.createElement("label");
+                allLabel.className = "checkline";
+                const all = document.createElement("input");
+                all.type = "checkbox";
+                all.checked = selected.size === 0;
+                all.indeterminate = selected.size > 0;
+                all.addEventListener("change", () => {
+                  toolsBox.querySelectorAll('input[data-tool]').forEach((input) => {
+                    input.checked = all.checked;
+                  });
+                });
+                allLabel.append(all, document.createTextNode(" 全部"));
+                toolsBox.appendChild(allLabel);
+                for (const tool of tools) {
+                  const label = document.createElement("label");
+                  label.className = "checkline out-tool";
+                  const input = document.createElement("input");
+                  input.type = "checkbox";
+                  input.dataset.tool = tool.name;
+                  input.value = tool.name;
+                  input.checked = selected.size === 0 || selected.has(tool.name);
+                  label.append(input, document.createTextNode(` ${tool.name}`));
+                  label.title = tool.description || "";
+                  toolsBox.appendChild(label);
                 }
               } catch (error) {
-                failures += 1;
-                lines.push(`❌ ${item.kind}:${(item.entry && item.entry.name) || "(未命名)"} — ${error.message}`);
+                toolsBox.innerHTML = `<span class="hint">加载失败：${escapeHtml(error.message || "")}</span>`;
               }
-            }
-            setResult("import-result", failures === 0, `处理完成：成功 ${items.length - failures} / ${items.length}`, lines);
-            if (!onlyTest && failures < items.length) {
-              toast(`已导入 ${items.length - failures} 个来源`, "ok");
-              await loadOverview();
-            }
+            };
+
+            include.addEventListener("change", () => {
+              if (mode === "proxy" && include.checked) {
+                box.querySelectorAll('input[data-role="source"]').forEach((input) => {
+                  if (input !== include) input.checked = false;
+                });
+              }
+              block.classList.toggle("picked", include.checked);
+            });
+            block.classList.toggle("picked", include.checked);
+            if (include.checked) await renderTools();
+            include.addEventListener("change", () => {
+              if (include.checked) renderTools();
+              else toolsBox.innerHTML = "";
+            });
+          }
+        }
+
+        async function editOutput(output) {
+          outState.editing = output ? output.name : "";
+          $("output-editor").hidden = false;
+          $("output-editor-title").textContent = output ? `编辑输出：${output.name}` : "新建输出";
+          $("output-name").value = output ? output.name : "";
+          $("output-name").disabled = Boolean(output);
+          $("output-mode").value = output ? output.mode : "convert";
+          $("output-form-mcp").checked = output ? output.form.includes("mcp") : true;
+          $("output-form-api").checked = output ? output.form.includes("api") : true;
+          $("output-token").value = output?.token || "";
+          $("output-allow-cred").checked = output?.allowCredentialSwitch === true;
+          clearResult("output-result");
+          syncOutputMode();
+          await renderOutputSources(output);
+          $("output-editor").scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        function syncOutputMode() {
+          const mode = $("output-mode").value;
+          $("output-form-mcp").disabled = mode !== "convert";
+          $("output-form-api").disabled = mode !== "convert";
+          if (mode === "mirror") {
+            $("output-form-mcp").checked = true;
+            $("output-form-api").checked = false;
+          } else if (mode === "proxy") {
+            $("output-form-mcp").checked = false;
+            $("output-form-api").checked = true;
+          }
+          $("output-cred-wrap").hidden = mode === "proxy";
+        }
+
+        $("output-mode").addEventListener("change", async () => {
+          syncOutputMode();
+          await renderOutputSources(outState.editing ? outState.outputs.find((item) => item.name === outState.editing) : undefined);
+        });
+
+        $("output-new").addEventListener("click", () => editOutput(undefined));
+        $("output-cancel").addEventListener("click", () => {
+          outState.editing = "";
+          $("output-editor").hidden = true;
+        });
+
+        $("output-save").addEventListener("click", async () => {
+          const button = $("output-save");
+          button.disabled = true;
+          try {
+            const mode = $("output-mode").value;
+            const sources = [...document.querySelectorAll("#output-sources .out-source")]
+              .filter((block) => block.querySelector('input[data-role="source"]').checked)
+              .map((block) => {
+                const inputs = [...block.querySelectorAll("input[data-tool]")];
+                const tools = inputs.filter((input) => input.checked).map((input) => input.value);
+                return { source: block.dataset.source, tools: tools.length === inputs.length ? [] : tools };
+              });
+            const name = $("output-name").value.trim();
+            if (!name) throw new Error("请填写输出名");
+            if (!sources.length) throw new Error("至少选择一个来源");
+            const form = [];
+            if (!["mirror", "proxy"].includes(mode) && $("output-form-mcp").checked) form.push("mcp");
+            if (!["mirror", "proxy"].includes(mode) && $("output-form-api").checked) form.push("api");
+            const payload = {
+              name,
+              mode,
+              form,
+              sources,
+              token: $("output-token").value.trim() || undefined,
+              allowCredentialSwitch: $("output-allow-cred").checked,
+            };
+            const data = await api("/outputs", { method: "POST", body: JSON.stringify(payload) });
+            toast(`已保存输出「${data.output.name}」`, "ok");
+            $("output-editor").hidden = true;
+            outState.editing = "";
+            await loadOutputs();
+          } catch (error) {
+            setResult("output-result", false, error.message || "保存失败", []);
+          } finally {
+            button.disabled = false;
+          }
+        });
+
+        async function deleteOutput(output) {
+          if (!confirm(`确定删除输出「${output.name}」？该端点会立即下线。`)) return;
+          try {
+            await api(`/outputs/${encodeURIComponent(output.name)}`, { method: "DELETE" });
+            toast(`已删除输出「${output.name}」`, "ok");
+            await loadOutputs();
+          } catch (error) {
+            toast(`删除失败：${error.message}`, "err");
+          }
+        }
+
+        // ---------------- 一键导入 ----------------
+        async function runImport() {
+          const button = $("import-run");
+          const text = $("import-text").value.trim();
+          if (!text) {
+            setResult("import-result", false, "先粘贴内容再导入", []);
+            return;
+          }
+          button.disabled = true;
+          button.textContent = "识别中…";
+          try {
+            const data = await api("/import", { method: "POST", body: JSON.stringify({ text }) });
+            const added = data.added || [];
+            setResult(
+              "import-result",
+              true,
+              `导入完成：${added.length} 个来源`,
+              added.map((item) => `✅ ${item.kind}:${item.name} 已上线${item.kind ? `（输出 ${item.name}）` : ""}`),
+            );
+            toast(`已导入 ${added.length} 个来源`, "ok");
+            await loadOverview();
+            await loadOutputs();
           } catch (error) {
             setResult("import-result", false, error.message || "导入失败", []);
           } finally {
             button.disabled = false;
+            button.textContent = "识别并导入";
           }
         }
 
-        $("import-run").addEventListener("click", () => runImport(false));
-        $("import-test").addEventListener("click", () => runImport(true));
+        $("import-run").addEventListener("click", runImport);
         $("import-example").addEventListener("click", () => {
           $("import-text").value = JSON.stringify(
             {
@@ -2887,20 +2976,6 @@
                   args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"],
                 },
               },
-              apis: [
-                {
-                  name: "petstore",
-                  description: "公共演示服务（OpenAPI 3.0）",
-                  spec: "https://petstore3.swagger.io/api/v3/openapi.json",
-                  baseUrl: "https://petstore3.swagger.io/api/v3",
-                },
-                {
-                  name: "rainyun",
-                  description: "雨云 API（Swagger 2.0，自动转换）",
-                  spec: "https://api.rainyun.com/openapi.json",
-                  security: { ApiKey: { token: "<雨云 API 密钥>" } },
-                },
-              ],
             },
             null,
             2,
@@ -2914,14 +2989,14 @@
           localStorage.setItem(TOKEN_KEY, state.token);
           toast("Token 已保存到本地浏览器", "ok");
           await loadOverview();
-          await loadPrompts();
+          await loadOutputs();
         });
         $("token").addEventListener("keydown", (event) => {
           if (event.key === "Enter") $("save-token").click();
         });
         $("refresh").addEventListener("click", () => {
           loadOverview();
-          loadPrompts();
+          loadOutputs();
         });
         $("reload-sources").addEventListener("click", async () => {
           const button = $("reload-sources");
@@ -2946,6 +3021,7 @@
         $("mcp-transport").dispatchEvent(new Event("change"));
         loadOverview();
         loadCredentials();
+        loadOutputs();
       })();
     </script>
   </body>

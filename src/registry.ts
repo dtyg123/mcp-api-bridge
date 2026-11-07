@@ -1,4 +1,4 @@
-import type { BridgeConfig, ExposureConfig, McpServerConfig } from "./config.js";
+import type { BridgeConfig, ExposureConfig, McpServerConfig, OutputConfig } from "./config.js";
 import { buildOpenApiTools } from "./convert/openapi-to-tools.js";
 import { loadOpenApiDocument, resolveBaseUrl } from "./openapi/loader.js";
 import type { BridgeTool, SourceInfo } from "./types.js";
@@ -220,6 +220,31 @@ export class Registry {
   /** Every registered tool of one source, regardless of exposure (admin UI testing). */
   getToolsForSource(source: string): BridgeTool[] {
     return this.tools.filter((tool) => tool.source === source);
+  }
+
+  /**
+   * Tools of an output, under the names that output exposes. `convert` keeps
+   * the global `{source}__{tool}` names; `mirror` restores the upstream names
+   * so an MCP client sees the original tool surface.
+   */
+  getOutputTools(output: OutputConfig): BridgeTool[] {
+    const selected: BridgeTool[] = [];
+    for (const ref of output.sources) {
+      selected.push(
+        ...this.tools.filter(
+          (tool) =>
+            tool.source === ref.source && (ref.tools.length === 0 || ref.tools.includes(tool.originalName)),
+        ),
+      );
+    }
+    return output.mode === "mirror" ? selected.map((tool) => ({ ...tool, name: tool.originalName })) : selected;
+  }
+
+  /** Resolve a tool the way an output exposes it (name or upstream name). */
+  findOutputTool(output: OutputConfig, identifier: string): BridgeTool | undefined {
+    return this.getOutputTools(output).find(
+      (tool) => tool.name === identifier || tool.originalName === identifier,
+    );
   }
 
   getTool(name: string): BridgeTool | undefined {

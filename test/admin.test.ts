@@ -130,8 +130,10 @@ test("adding an OpenAPI source through the admin API makes it live", async () =>
   assert.equal(json.source.status, "ready");
   assert.equal(json.source.toolCount, 4);
 
-  const tools = await fetch(`${base}/tools`, { headers: authHeaders() }).then((r) => r.json());
-  assert.ok(tools.tools.some((tool: any) => tool.name === "petstore__listPets"));
+  const outputs = await fetch(`${base}/admin/api/outputs`, { headers: authHeaders() }).then((r) => r.json());
+  const petstoreOutput = outputs.outputs.find((output: any) => output.name === "petstore");
+  assert.equal(petstoreOutput.toolCount, 4);
+  assert.deepEqual(petstoreOutput.form.sort(), ["api", "mcp"]);
 
   const call = await fetch(`${base}/api/petstore/listPets`, {
     method: "POST",
@@ -481,47 +483,19 @@ test("invalid sources are rejected with a readable message", async () => {
   assert.equal(missingKind.json.error, "invalid_kind");
 });
 
-test("prompts are generated for every kind and follow the tool catalog", async () => {
-  const mcp = await fetch(`${base}/admin/api/prompt?kind=mcp`, { headers: authHeaders() }).then((r) => r.json());
-  assert.equal(mcp.ok, true);
-  assert.match(mcp.text, /Streamable HTTP/);
-  assert.match(mcp.text, /echo__add/);
-  assert.match(mcp.text, /"mcpServers"/);
+test("prompts are generated per output and follow its tool subset", async () => {
+  const prompt = await fetch(`${base}/admin/api/outputs/petstore/prompt`, { headers: authHeaders() }).then((r) => r.json());
+  assert.equal(prompt.ok, true);
+  assert.equal(prompt.toolCount, 4);
+  assert.match(prompt.text, /Streamable HTTP/);
+  assert.match(prompt.text, /petstore__listPets/);
+  assert.match(prompt.text, /"mcpServers"/);
+  assert.match(prompt.text, /\/mcp\/petstore/);
+  assert.match(prompt.text, /\/api\/petstore/);
+  assert.ok(!prompt.text.includes("echo__add"));
 
-  const scoped = await fetch(`${base}/admin/api/prompt?kind=mcp&source=petstore`, { headers: authHeaders() }).then(
-    (r) => r.json(),
-  );
-  assert.match(scoped.text, /petstore__listPets/);
-  assert.ok(!scoped.text.includes("echo__add"));
-
-  const service = await fetch(`${base}/admin/api/prompt?kind=service&source=petstore`, { headers: authHeaders() }).then(
-    (r) => r.json(),
-  );
-  assert.equal(service.ok, true);
-  assert.match(service.text, /独立服务 petstore/);
-  assert.match(service.text, /只使用上面列出的工具/);
-  assert.match(service.text, /petstore__listPets/);
-  assert.match(service.text, /\/mcp\/petstore/);
-  assert.ok(!service.text.includes("echo__add"));
-
-  const rest = await fetch(`${base}/admin/api/prompt?kind=rest`, { headers: authHeaders() }).then((r) => r.json());
-  assert.match(rest.text, /openapi\.json/);
-  assert.match(rest.text, /POST .*\/api\/\{source\}\/\{tool\}/);
-
-  const addMcp = await fetch(`${base}/admin/api/prompt?kind=add-mcp&name=myserver&command=npx%20-y%20pkg`, {
-    headers: authHeaders(),
-  }).then((r) => r.json());
-  assert.match(addMcp.text, /只输出一个 JSON 对象/);
-  assert.match(addMcp.text, /myserver/);
-
-  const addApi = await fetch(`${base}/admin/api/prompt?kind=add-api&spec=https%3A%2F%2Fexample.com%2Fopenapi.json`, {
-    headers: authHeaders(),
-  }).then((r) => r.json());
-  assert.match(addApi.text, /OpenAPI 3\.x/);
-  assert.match(addApi.text, /example\.com/);
-
-  const invalid = await fetch(`${base}/admin/api/prompt?kind=nope`, { headers: authHeaders() });
-  assert.equal(invalid.status, 400);
+  const missing = await fetch(`${base}/admin/api/outputs/ghost/prompt`, { headers: authHeaders() });
+  assert.equal(missing.status, 404);
 });
 
 test("deleting a managed source removes it from every surface", async () => {
@@ -531,8 +505,10 @@ test("deleting a managed source removes it from every surface", async () => {
   }).then((r) => r.json());
   assert.equal(removed.ok, true);
 
-  const tools = await fetch(`${base}/tools`, { headers: authHeaders() }).then((r) => r.json());
-  assert.ok(!tools.tools.some((tool: any) => tool.source === "petstore"));
+  const outputs = await fetch(`${base}/admin/api/outputs`, { headers: authHeaders() }).then((r) => r.json());
+  assert.ok(!outputs.outputs.some((output: any) => output.name === "petstore"), "output pruned");
+  const call = await fetch(`${base}/api/petstore/listPets?limit=1`);
+  assert.equal(call.status, 404);
 
   const again = await fetch(`${base}/admin/api/sources/api/petstore`, { method: "DELETE", headers: authHeaders() });
   assert.equal(again.status, 404);
@@ -581,6 +557,16 @@ test("admin and REST callers can switch credentials when allowed", async () => {
     },
   });
   assert.equal(switchSource.status, 200);
+
+  // The switch is an output-level permission.
+  const switchOutput = await adminPost("/admin/api/outputs", {
+    name: "petstore-switch",
+    mode: "convert",
+    form: ["mcp", "api"],
+    sources: [{ source: "petstore-switch" }],
+    allowCredentialSwitch: true,
+  });
+  assert.equal(switchOutput.status, 200);
 
   const lastHeaders = () => mock.requests[mock.requests.length - 1].headers;
 

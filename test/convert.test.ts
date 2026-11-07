@@ -105,8 +105,8 @@ test("MCP tools convert into a valid OpenAPI document", async () => {
   });
 
   const paths = document.paths as Record<string, any>;
-  assert.ok(paths["/api/petstore/listPets"], "api tools get a path");
-  assert.ok(paths["/api/echo/describe_pet"], "mcp tools get a path");
+  assert.ok(paths["/api/listPets"], "api tools get a path");
+  assert.ok(paths["/api/echo__describe_pet"], "mcp tools get a path");
   assert.equal(document.openapi, "3.1.0");
   assert.deepEqual(document.servers, [{ url: "http://localhost:8080" }]);
 
@@ -115,12 +115,12 @@ test("MCP tools convert into a valid OpenAPI document", async () => {
   const petSchemaKey = Object.keys(schemas).find((key) => key.endsWith("_Pet"));
   assert.ok(petSchemaKey, "nested $defs are hoisted into components.schemas");
   assert.equal(
-    paths["/api/echo/describe_pet"].post.requestBody.content["application/json"].schema.properties.pet.$ref,
+    paths["/api/echo__describe_pet"].post.requestBody.content["application/json"].schema.properties.pet.$ref,
     `#/components/schemas/${petSchemaKey}`,
   );
 
   // GET variant exists for scalar-only tools.
-  assert.ok(paths["/api/petstore/getPetById"].get);
+  assert.ok(paths["/api/getPetById"].get);
 
   const doc30 = buildOpenApiDocument({
     tools: [...apiTools, mcpTool],

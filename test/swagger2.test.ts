@@ -126,7 +126,7 @@ test("converted tools still produce an OpenAPI document", async () => {
     basePath: "/api",
   });
   assert.equal(document.openapi, "3.1.0");
-  const operation = (document.paths as Record<string, any>)["/api/rainyun/registerDomain"].post;
+  const operation = (document.paths as Record<string, any>)["/api/registerDomain"].post;
   assert.ok(operation, "each tool becomes a POST endpoint");
   assert.deepEqual(
     Object.keys(operation.requestBody.content["application/json"].schema.properties).sort(),

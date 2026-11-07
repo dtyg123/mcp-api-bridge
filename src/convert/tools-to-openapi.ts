@@ -66,7 +66,7 @@ export function buildOpenApiDocument(options: BuildDocumentOptions): Record<stri
     const bodySchema = pointsToComponents(hoisted.schema) as JsonSchema;
     Object.assign(schemas, pointsToComponents(hoisted.defs as JsonSchema) as Record<string, JsonSchema>);
 
-    const toolPath = joinPath(options.basePath, tool.source, tool.originalName);
+    const toolPath = joinPath(options.basePath, tool.name);
     const operationId = `${tool.source}__${tool.originalName}`;
     const firstLine = tool.description.split("\n")[0].trim();
     const summary = tool.title?.trim() || firstLine.slice(0, 120) || tool.originalName;

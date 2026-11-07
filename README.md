@@ -18,22 +18,24 @@ TypeScript 实现，单进程、单个 Docker 镜像、HTTP 与 stdio 双形态�
 **特性**
 
 - **双向**：MCP → REST/OpenAPI，API → MCP，同一份注册表同时对外提供两套接口
+- **输出即端点**：来源（MCP / OpenAPI）只是素材，真正的对外接口是「输出」——一个输出可组合多个来源、裁掉不需要的工具、选 MCP 和/或 API 形态
+- **三种形态**：`convert` 逐工具转换（`{source}__{tool}`）、`mirror` 保持 MCP 上游工具名、`proxy` 按上游路径原样转发（网关仍解析协议，不暴露上游地址与凭证）
 - **文档通吃**：OpenAPI 3.0 / 3.1，以及**自动转换的 Swagger 2.0**（`in: body`、`definitions`、`securityDefinitions`，实测雨云 API 217 个操作）
 - **零配置接入**：`spec` 支持 URL / 本地文件 / 粘贴文本，`$ref` 自动内联（含外部引用、JSON/YAML）
-- **Web 管理台**：可视化添加来源、逐项测试接口、管理可复用的「认证信息」、用左右字段映射编排返回数据、生成可直接粘给 AI 的接入提示词
-- **数据编排**：响应到达调用方前重新组装——挑字段、改名、补当前时间 / 固定文本 / 计数，无需改上游或写代码；新增来源后先「编排」再对外提供 MCP 工具
-- **原生 MCP**：Streamable HTTP（stateful / stateless）、单来源端点 `/mcp/{source}`、stdio 模式
+- **Web 管理台**：可视化添加来源、一键导入、编辑输出并复制现成的 MCP 配置 / curl / AI 提示词；逐项测试接口、管理可复用的「认证信息」、按字段映射编排返回数据
+- **数据编排**：响应到达调用方前重新组装——挑字段、改名、补当前时间 / 固定文本 / 计数，无需改上游或写代码
+- **原生 MCP**：Streamable HTTP（stateful / stateless）、每个输出一个端点 `/mcp/{output}`、stdio 模式
 - **部署友好**：单镜像、非 root、健康检查、`data/` 卷持久化、环境变量插值，上游挂了网关照常启动（降级）
 
 ```
                     ┌──────────────────────────────────────────┐
   MCP 客户端         │              mcp-api-bridge              │        REST 客户端
   (Claude Desktop,  │                                          │        (curl, Postman,
-   Cursor, Cline,   │   POST /mcp          Streamable HTTP      │         ChatGPT Actions,
-   Agent, ...)  ────┼──►  /mcp/{source}    (MCP 协议)            │◄────   自研服务, ...)
+   Cursor, Cline,   │   POST /mcp/{output}     Streamable HTTP │         ChatGPT Actions,
+   Agent, ...)  ────┼──►  (MCP 协议)            │◄────   自研服务, ...)
                     │                                          │
-                    │   GET  /openapi.json  自动生成的 API 文档  │
-                    │   POST /api/{source}/{tool}  (REST 调用)  │
+                    │   GET  /openapi/{output}.json  输出的文档  │
+                    │   POST /api/{output}/{tool}   (REST 调用)  │
                     └───────────────┬──────────────────────────┘
                                     │
               ┌─────────────────────┴──────────────────────┐
@@ -41,12 +43,12 @@ TypeScript 实现，单进程、单个 Docker 镜像、HTTP 与 stdio 双形态�
       MCP Server（stdio / Streamable HTTP / SSE）    OpenAPI / Swagger 服务（HTTP + JSON）
 ```
 
-两个方向**同时可用**：同一份工具注册表，同时对外提供 MCP 和 REST 两套接口。
+两个方向**同时可用**：一个输出可以从多个来源取工具，同时对外提供 MCP 和 REST 两套接口。
 
-| 方向 | 输入 | 输出 | 典型用途 |
+| 形态 | 输入 | 输出 | 典型用途 |
 | --- | --- | --- | --- |
-| **MCP → API** | `mcpServers[]`（stdio / http / sse） | `POST /api/{source}/{tool}` + `/openapi.json` | 让不支持 MCP 的系统（脚本、低代码平台、Actions）调用 MCP 工具 |
-| **API → MCP** | `apis[]`（OpenAPI 3.x / Swagger 2.0 文档，URL 或本地文件） | `POST /mcp`（Streamable HTTP）、`--stdio` | 把已有业务 API 直接接入 Claude / Cursor / Agent |
+| **MCP → API** | 来源里的 MCP Server（stdio / http / sse） | `POST /api/{output}/{tool}` + `/openapi/{output}.json` | 让不支持 MCP 的系统（脚本、低代码平台、Actions）调用 MCP 工具 |
+| **API → MCP** | 来源里的 OpenAPI 3.x / Swagger 2.0 文档（URL 或本地文件） | `POST /mcp/{output}`（Streamable HTTP）、`--stdio` | 把已有业务 API 直接接入 Claude / Cursor / Agent |
 
 ---
 
@@ -94,14 +96,18 @@ node dist/src/index.js --config bridge.config.example.yaml
 
 ```
 GET  /health                    健康检查
-GET  /openapi.json              生成的 OpenAPI 文档（全部 REST 侧工具）
-GET  /tools                     工具清单 + JSON Schema
-POST /api/{source}/{tool}       调用工具（body = 工具参数）
-GET  /api/{source}/{tool}       调用工具（query = 工具参数，适合简单工具）
-POST /mcp                       聚合 MCP 端点（Streamable HTTP）
-POST /mcp/{source}              单个来源的 MCP 端点
-GET  /admin                     Web 管理台（添加来源 / 测试 / 生成接入提示词）
+GET  /openapi/{output}.json     该输出的 OpenAPI 文档
+POST /api/{output}/{tool}       调用工具（body = 工具参数）
+GET  /api/{output}/{tool}       调用工具（query = 工具参数，适合简单工具）
+POST /api/{output}/*            proxy 输出的原样透传入口
+POST /mcp/{output}              该输出的 MCP 端点（Streamable HTTP）
+GET  /admin                     Web 管理台（添加来源 / 编辑输出 / 测试）
 POST /admin/reload              重新加载 spec / 刷新上游工具列表
+GET  /admin/api/outputs         输出列表（含工具数、端点 URL）
+POST /admin/api/outputs         新建 / 更新输出
+DELETE /admin/api/outputs/:name 删除输出
+GET  /admin/api/outputs/:name/prompt  该输出的 AI 接入提示词
+POST /admin/api/import          一键导入（MCP 客户端配置 / OpenAPI 文档 / 启动命令）
 GET  /admin/api/credentials     认证信息列表（值已掩码）
 POST /admin/api/credentials     新增 / 更新认证信息
 GET  /admin/api/transforms      数据编排列表
@@ -119,13 +125,13 @@ GET  /admin/api/sources/:kind/:name/discover?tool=  探测某接口返回，递�
 | 页面 | 作用 |
 | --- | --- |
 | **概览** | 来源列表：类型、状态、工具数、是否已编排；每行可「打开 / 编辑 / 删除」，点来源名也能进入工作台 |
-| **来源** | 三种添加方式切换：**MCP**（stdio / Streamable HTTP / SSE）、**OpenAPI**、**JSON 导入**（单条 `{ "type": "mcp" \\| "api", ... }`、批量 `{ mcpServers: [], apis: [] }`，或 Claude Desktop / Cursor 的 `mcpServers`）。OpenAPI 文档只需一个输入框：填 URL / 本地路径，或直接粘贴 JSON/YAML（自动识别）。保存后**立即生效**。认证统一为**勾选全局凭证**（可多选）；「高级选项」里可配置额外请求头（非认证）、「允许调用方切换凭证」和来源级**访问令牌**（只解锁该来源端点）。页面底部有「🔑 全局凭证」卡片（请求头 / Bearer / Basic，值掩码显示），新建时可「按文档方案填入」自动取到 `securitySchemes` 的请求头名 |
-| **工作台** | 选中一个来源后，内页切换 **接口测试**（逐项调接口、填参数、看真实响应；可**临时切换凭证**，并同时显示原始/处理后响应）与 **编排**（左右字段映射：左列「探测字段」、右列自定义输出名，一键「快速编排」原样照搬，再补当前时间 / 固定值 / 模板文本，带示例响应实时预览）。新增来源后会自动跳到这里 |
-| **接入提示词** | **按服务**生成独立提示词（只含该服务的工具 + 单来源端点，可限定 AI 只能访问该服务）；另有四类通用提示词一键复制：① MCP 接入 ② REST/OpenAPI 接入 ③ 生成「新增 MCP 来源」配置 ④ 生成「新增 OpenAPI 来源」配置 |
+| **来源** | 三种添加方式切换：**MCP**（stdio / Streamable HTTP / SSE）、**OpenAPI**、**一键导入**（粘贴 MCP 客户端配置、OpenAPI/Swagger 文档或 URL、或一条启动命令）。OpenAPI 文档只需一个输入框：填 URL / 本地路径，或直接粘贴 JSON/YAML（自动识别）。保存后**立即生效**。认证统一为**勾选全局凭证**（可多选）；「高级选项」里可配置额外请求头、过滤和超时。页面底部有「🔑 全局凭证」卡片（请求头 / Bearer / Basic，值掩码显示），新建时可「按文档方案填入」自动取到 `securitySchemes` 的请求头名 |
+| **输出** | 对外发布的一套端点。一个输出可以：组合多个来源、逐来源勾选要暴露的工具（全不勾 = 全部）、选择形态（MCP / API）、选择模式：**转换**（`{source}__{tool}`）、**镜像**（保持上游 MCP 工具名）、**原样透传**（按上游路径转发，仅限 1 个 OpenAPI 来源）。每张卡片都能一键复制 MCP 客户端配置、curl 示例和整份 AI 提示词 |
+| **工作台** | 选中一个来源后，内页切换 **接口测试**（逐项调接口、填参数、看真实响应；可**临时切换凭证**，并同时显示原始/处理后响应）与 **编排**（左右字段映射：左列「探测字段」、右列自定义输出名，一键「快速编排」原样照搬，再补当前时间 / 固定值 / 模板文本，带示例响应实时预览） |
 
 几个关键设计：
 
-- 管理台新增的来源写入 `data/managed-sources.json`（`server.admin.storeFile` / `BRIDGE_DATA_DIR` 可改位置），**不会改写** `bridge.config.yaml`；同名条目以管理台版本为准，所以也能「接管」手写来源。
+- 管理台新增的来源和输出写入 `data/managed-sources.json`（`server.admin.storeFile` / `BRIDGE_DATA_DIR` 可改位置），**不会改写** `bridge.config.yaml`；同名条目以管理台版本为准，所以也能「接管」手写来源。
 - 删除：管理台来源直接移除；配置文件里声明的来源会记录到 `managed-sources.json` 的 `excludes` 并从运行中的网关隐藏（**不改你的 YAML，重启后仍生效**），重新以同名添加即可恢复。
 - 「粘贴文档」方式添加 OpenAPI 时，文档会保存到 `data/specs/`，重启后依然可用。
 - 「全局凭证」和「数据编排」分别持久化到 `data/credentials.json`、`data/transforms.json`（与 `managed-sources.json` 同目录），同样依赖挂载的 `data/` 卷。
@@ -154,10 +160,6 @@ mcpServers:
       type: stdio
       command: npx
       args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
-    exposure:
-      rest: true      # 暴露成 REST
-      mcp: true       # 同时在 /mcp 上暴露
-      prefix: ""      # 工具名前缀
 
   - name: remote
     transport:
@@ -166,6 +168,8 @@ mcpServers:
       headers:
         Authorization: Bearer ${REMOTE_MCP_TOKEN}
 ```
+
+每个来源首次出现时会自动生成一个同名输出（转换模式、MCP + API、全部工具），所以上面的例子直接可用 `/api/filesystem/read_file`、`/mcp/filesystem`。要裁剪工具或组合来源，在管理台「输出」里改（或写 `outputs:`，见「配置说明」）。
 
 调用：
 
@@ -199,7 +203,7 @@ curl 'http://localhost:8080/api/filesystem/read_file?path=/data/notes.md'
 - `data` 是结构化载荷：`structuredContent`，或能被 JSON 解析的文本，否则为原文
 - 配置了「数据编排」时，`data` / `text` 会被积木重新组装，并附带 `transformed: true`（详见下文）
 - 工具级失败（MCP `isError: true`）返回 **HTTP 200 + `ok: false`**，与 MCP 语义一致；网关级错误用 400 / 404 / 502
-- 同时 `GET /openapi.json` 会自动生成完整 OpenAPI 文档，可直接导入 Postman、Dify、ChatGPT Actions 等
+- 同时 `GET /openapi/{output}.json` 会生成该输出的 OpenAPI 文档，可直接导入 Postman、Dify、ChatGPT Actions 等
 
 ---
 
@@ -218,10 +222,6 @@ apis:
       ApiKeyAuth: { token: ${PETSTORE_KEY} }
       BearerAuth: { token: ${PETSTORE_TOKEN} }
       BasicAuth:  { username: admin, password: ${PETSTORE_PASS} }
-    exposure:
-      rest: true
-      mcp: true
-      prefix: ""
 ```
 
 `spec` 可以是 URL、绝对路径，或相对配置文件所在目录的路径（JSON / YAML 均可，支持 `$ref` 内联，含外部引用）。
@@ -245,16 +245,16 @@ Streamable HTTP（Claude Desktop、Cursor、Cline、自研 Agent 等）：
 ```json
 {
   "mcpServers": {
-    "bridge": {
+    "petstore": {
       "type": "http",
-      "url": "http://localhost:8080/mcp",
+      "url": "http://localhost:8080/mcp/petstore",
       "headers": { "Authorization": "Bearer <BRIDGE_MCP_TOKEN>" }
     }
   }
 }
 ```
 
-也可以按来源拆开，一个来源一个端点：`http://localhost:8080/mcp/petstore`。
+`/mcp/{output}` 中的 `{output}` 是输出名。默认输出与来源同名，所以 `petstore` 来源就是 `/mcp/petstore`；在管理台新建输出后换成新名字即可。
 
 ### stdio 模式
 
@@ -296,7 +296,6 @@ apis:
   - name: rainyun
     spec: https://api.rainyun.com/openapi.json
     credentialRefs: [rainyun, rainyun-backup]   # 可引用多个凭证
-    allowCredentialSwitch: true                  # 允许调用方按请求切换（默认 false）
     headers:                                     # 显式请求头优先，同名（忽略大小写）只保留一份
       User-Agent: mcp-api-bridge
 ```
@@ -304,29 +303,28 @@ apis:
 管理台新增 / 编辑来源时直接勾选凭证即可。**同一来源可引用多个凭证**，默认全部合并（同名头以后者为准）：
 
 - 「工作台 → 接口测试」有「凭证」下拉，可对单次测试临时切换（仅后台）。
-- 来源开启「允许调用方切换凭证」后，REST 调用可在请求头带 `x-bridge-credential: <凭证名>`，只使用该来源引用的某个凭证；未开启返回 403，未引用返回 400。MCP 面暂不支持按调用切换。
+- 输出开启「允许调用方切换凭证」后，REST 调用可在请求头带 `x-bridge-credential: <凭证名>`，只使用该输出里某个来源引用的凭证；未开启返回 403，未引用返回 400。MCP 面暂不支持按调用切换。
 - 新建凭证时点「按文档方案填入」，会读取当前文档的 `securitySchemes`，自动填好请求头名（如 `X-Api-Key`）和类型。
 
-## 按来源访问令牌（隔离到单个服务）
+## 输出访问令牌（隔离到单个输出）
 
-「来源」页的「高级选项 → 访问令牌」给单个来源配一个 token（YAML 里是 `accessToken`）。配了之后，AI 只能拿到该服务的入口，改 URL 也越不过去：
+「输出」编辑器里可以给这个输出配一个 token。配了之后，AI 只能拿到这组端点，改 URL 也越不过去：
 
 | 入口 | 接受的 token |
 | --- | --- |
-| `/mcp/{source}`、`/api/{source}/{tool}` | 该来源的 `accessToken`，或全局 `rest` / `mcp` token |
-| `/mcp`、`/openapi.json`、`/tools` | 只认全局 token |
+| `/mcp/{output}`、`/api/{output}/**`、`/openapi/{output}.json` | 该输出的 token，或全局 `rest` / `mcp` token |
 
-- 只要**任意**来源配了 `accessToken`，没有自己 token 的来源就退回「只认全局 token」，不会变成匿名可访问。
-- 「接入提示词 → 按服务」生成的内容会自动带上该来源的 token，并去掉该 token 访问不了的 `/openapi.json` 链接。
+- 输出没配 token 时退回全局 token；两处都没配才是匿名可访问（默认，方便本地试）。
+- 输出卡片上的「复制 AI 提示词」会自动带上该输出的 token。
 - 只把这份提示词（或这份客户端配置）交给 AI，就能做到 token 级隔离：全局 token 相当于总钥匙，不要外发。
 
 ---
 
 ## 数据编排（字段映射）
 
-「数据编排」在响应到达调用方之前重新组装数据：挑出需要的字段、改名、补上当前时间或固定文本，适合把上游的原始响应整理成前端 / AI 直接可用的形状。**新增来源后必须先完成编排，才对外提供 MCP 工具**（概览页会给未编排的来源打上「未编排」标记，添加来源成功也会自动跳到「工作台 → 编排」）。
+「数据编排」在响应到达调用方之前重新组装数据：挑出需要的字段、改名、补上当前时间或固定文本，适合把上游的原始响应整理成前端 / AI 直接可用的形状。
 
-配置以 `source + tool` 为键（`tool: "*"` 是该来源全部接口的默认规则），保存在 `data/transforms.json`，只作用于 **REST 面**（`/api/{source}/{tool}`）和管理台「接口测试」；MCP 面的 `structuredContent` 保持原样。
+配置以 `source + tool` 为键（`tool: "*"` 是该来源全部接口的默认规则），保存在 `data/transforms.json`，只作用于 **REST 面**（`/api/{output}/{tool}`）和管理台「接口测试」；MCP 面的 `structuredContent` 保持原样。
 
 ### 管理台怎么用（更简单了）
 
@@ -401,18 +399,18 @@ apis:
 server:
   host: 0.0.0.0
   port: 8080
-  publicBaseUrl: ${PUBLIC_BASE_URL:-}   # 生成 /openapi.json 里的 servers[0].url
+  publicBaseUrl: ${PUBLIC_BASE_URL:-}   # 生成 /openapi/{output}.json 里的 servers[0].url
   basePath: ""                          # 全局路径前缀，例如 /bridge
   cors: true
   bodyLimit: 10mb
   auth:
-    rest: ${BRIDGE_REST_TOKEN:-}        # /api、/openapi.json、/tools
-    mcp: ${BRIDGE_MCP_TOKEN:-}          # /mcp、/mcp/{source}
+    rest: ${BRIDGE_REST_TOKEN:-}        # /api/{output}、/openapi/{output}.json 的全局 token
+    mcp: ${BRIDGE_MCP_TOKEN:-}          # /mcp/{output} 的全局 token
   adminToken: ${BRIDGE_ADMIN_TOKEN:-}   # /admin 管理台与 /admin/api/**
   admin:
     enabled: true                       # false = 完全关闭管理台
     path: /admin
-    storeFile: ./data/managed-sources.json   # 管理台新增的来源（相对配置文件目录）
+    storeFile: ./data/managed-sources.json   # 管理台新增的来源 / 输出（相对配置文件目录）
     specsDir: ./data/specs                   # 「粘贴 OpenAPI 文档」的存放目录
   mcp:
     path: /mcp
@@ -420,6 +418,17 @@ server:
     jsonResponse: false                 # true = 用 JSON 响应替代 SSE 流
   rest:
     path: /api
+
+outputs:                                # 对外发布的端点（管理台里的改动写入 data 文件）
+  - name: everything
+    mode: convert                       # convert | mirror | proxy
+    form: [mcp, api]                    # convert 可双形态；mirror 仅 mcp；proxy 仅 api
+    sources:
+      - source: filesystem              # tools 留空 = 该来源全部工具
+      - source: petstore
+        tools: [listPets, getPetById]   # 只暴露这些工具
+    token: ${OUTPUT_TOKEN:-}            # 可选；留空回退全局 token
+    allowCredentialSwitch: false
 
 openapi:
   version: "3.1"                        # 3.1 | 3.0
@@ -431,8 +440,9 @@ logging:
 ```
 
 - 字符串值支持 `${VAR}` 与 `${VAR:-默认值}` 环境变量插值，敏感信息不必写进文件
-- `auth.*` 留空表示关闭鉴权；填值后需 `Authorization: Bearer <token>`（或 `x-api-key`）
-- `exposure.{rest,mcp}` 控制某个来源是否出现在对应面上；`exposure.prefix` 用于避免工具名冲突
+- `auth.*` 留空表示不启用全局 token；填值后需 `Authorization: Bearer <token>`（或 `x-api-key`）
+- `outputs[]` 决定对外的端点、工具裁剪和鉴权。来源第一次出现会自动生成同名默认输出（转换、MCP + API、全部工具）；管理台对输出 / 来源的修改写入 `storeFile`，不改你的 YAML
+- `exposure` 只影响 stdio 模式与 `--list-tools` 的工具清单，不再影响 HTTP 端点（HTTP 由 `outputs` 决定）
 - `sessionMode: stateless` 时每个请求独立建连，适合多副本无状态部署
 - `server.adminToken` 只保护管理台；留空时管理台完全开放（启动日志会警告）
 
@@ -447,7 +457,7 @@ logging:
 
 | 规则 | 说明 |
 | --- | --- |
-| 工具名 | `{prefix}{source}__{operationId}`，非法字符替换为 `_`，超过 64 字符自动加哈希后缀；重名追加 `_2` |
+| 工具名 | `{source}__{operationId}`，非法字符替换为 `_`，超过 64 字符自动加哈希后缀；重名追加 `_2` |
 | 参数 | `path` / `query` / `header` / `cookie` 参数合并到顶层对象；描述前加 `(path)`、`(query)` 等标记 |
 | 请求体 | JSON 对象体直接**展开**到顶层（`body.name` → `name`），与参数重名时自动加 `body_` 前缀；数组/字符串等非对象体放进 `body` |
 | 必填 | `path` 参数恒为必填；`requestBody.required` 为真时其 `required` 字段才生效 |
@@ -461,7 +471,7 @@ logging:
 
 | 规则 | 说明 |
 | --- | --- |
-| 路径 | `{rest.path}/{source}/{originalName}` |
+| 路径 | `{rest.path}/{output}/{tool.name}`（转换模式为 `{source}__{tool}`，镜像模式为上游工具名） |
 | 方法 | 每个工具生成 `POST`（body = 参数对象）；参数均为基础类型时额外生成 `GET`（query 参数） |
 | Schema | MCP `inputSchema` 原样作为 `requestBody` schema，`$defs` 提升到 `components.schemas` |
 | 响应 | 统一 `BridgeToolResult` 封装（`ok` / `isError` / `text` / `data` / `content`） |
@@ -518,11 +528,11 @@ src/
   upstream/mcp.ts          MCP 客户端（stdio / Streamable HTTP / SSE）
   mcp/gateway.ts           聚合 MCP Server（动态 tools/list + tools/call）
   admin/
-    store.ts               来源持久化与热重载（managed-sources.json）
+    store.ts               来源 / 输出持久化与热重载（managed-sources.json）
     credentials.ts         认证信息保险库（credentials.json）
     transforms.ts          数据编排积木引擎（transforms.json）
     service.ts             来源连通性测试
-    prompts.ts             接入提示词生成
+    prompts.ts             按输出生成接入提示词
   http/
     server.ts             Express 路由、鉴权、REST/RPC 封装
     mcp-endpoint.ts       Streamable HTTP 会话管理（stateful / stateless）

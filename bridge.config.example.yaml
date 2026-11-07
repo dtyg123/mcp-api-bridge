@@ -11,7 +11,7 @@
 server:
   host: 0.0.0.0
   port: 8080
-  # 反向代理 / 公网部署时设置，用于生成 /openapi.json 中的 servers[0].url
+  # 反向代理 / 公网部署时设置，用于生成 /openapi/{output}.json 中的 servers[0].url
   publicBaseUrl: ${PUBLIC_BASE_URL:-}
   # 所有路由的公共前缀，例如 /bridge；留空表示根路径
   basePath: ""
@@ -20,18 +20,18 @@ server:
   requestTimeoutMs: 120000
 
   auth:
-    # 空字符串 = 关闭鉴权。填值后需要 Authorization: Bearer <token>
-    rest: ${BRIDGE_REST_TOKEN:-}   # 保护 /api/**、/openapi.json、/tools
-    mcp: ${BRIDGE_MCP_TOKEN:-}     # 保护 /mcp、/mcp/{source}
+    # 空字符串 = 不启用全局 token。填值后需要 Authorization: Bearer <token>
+    rest: ${BRIDGE_REST_TOKEN:-}   # /api/{output}、/openapi/{output}.json 的全局 token
+    mcp: ${BRIDGE_MCP_TOKEN:-}     # /mcp/{output} 的全局 token
 
   # 保护 /admin 管理台与 /admin/api/**。留空 = 不鉴权（本地使用可以，公网务必设置）
   adminToken: ${BRIDGE_ADMIN_TOKEN:-}
 
-  # Web 管理台：可视化添加来源、逐项测试、管理认证信息 / 数据编排、生成接入提示词
+  # Web 管理台：可视化添加来源、编辑输出、逐项测试、管理认证信息 / 数据编排
   admin:
     enabled: true
     path: /admin
-    # 管理台新增的来源单独存这里，不会改写上面的 YAML
+    # 管理台新增的来源与输出单独存这里，不会改写上面的 YAML
     storeFile: ${BRIDGE_DATA_DIR:-./data}/managed-sources.json
     # 管理台里「粘贴 OpenAPI 文档」时保存到的目录
     specsDir: ${BRIDGE_DATA_DIR:-./data}/specs
@@ -51,10 +51,28 @@ server:
     path: /api
 
 openapi:
-  # /openapi.json 默认输出格式：3.1（JSON Schema 2020-12）或 3.0（兼容性更好）
+  # /openapi/{output}.json 默认输出格式：3.1（JSON Schema 2020-12）或 3.0（兼容性更好）
   version: "3.1"
   title: MCP Bridge API
   description: 由 mcp-api-bridge 依据已注册工具自动生成。
+
+# =============================================================================
+#  对外输出（发布的端点）
+#
+#  来源只是素材；真正对外的是 outputs[]：可组合多个来源、裁剪工具、选形态。
+#  某个来源第一次出现时会自动生成一个同名默认输出（转换、MCP + API、全部工具），
+#  所以只有 apis / mcpServers 也能直接用 /api/{source}/... 和 /mcp/{source}。
+# =============================================================================
+# outputs:
+#   - name: everything
+#     mode: convert              # convert | mirror | proxy
+#     form: [mcp, api]           # convert 可双形态；mirror 仅 mcp；proxy 仅 api
+#     sources:
+#       - source: petstore       # tools 留空 = 该来源全部工具
+#       - source: remote-mcp
+#         tools: [echo]          # 只暴露这些工具
+#     token: ${OUTPUT_TOKEN:-}   # 可选；留空回退全局 token
+#     allowCredentialSwitch: false
 
 logging:
   level: ${LOG_LEVEL:-info}   # debug | info | warn | error
@@ -75,10 +93,6 @@ apis:
     # 匹配对象：`GET /pet/{petId}`、`/pet/{petId}`、operationId
     include: []
     exclude: []
-    exposure:
-      rest: true
-      mcp: true
-      prefix: ""
 
   # 需要鉴权的内部服务示例：
   # - name: internal
@@ -108,7 +122,6 @@ mcpServers:
   #     env:
   #       NODE_ENV: production
   #   cacheTtlMs: 15000
-  #   exposure: { rest: true, mcp: true, prefix: "" }
 
   # Streamable HTTP（也支持 type: sse）
   # - name: remote-mcp
@@ -117,4 +130,3 @@ mcpServers:
   #     url: https://example.com/mcp
   #     headers:
   #       Authorization: Bearer ${REMOTE_MCP_TOKEN}
-  #   exposure: { rest: true, mcp: true, prefix: "" }

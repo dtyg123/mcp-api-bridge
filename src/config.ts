@@ -13,6 +13,30 @@ export type ExposureConfig = {
   prefix: string;
 };
 
+export type OutputMode = "convert" | "mirror" | "proxy";
+export type OutputForm = "mcp" | "api";
+
+export type OutputSourceRef = {
+  source: string;
+  /** Upstream tool names to expose; empty means every tool of that source. */
+  tools: string[];
+};
+
+/**
+ * A published endpoint. It is only a view over sources: which tools, in which
+ * shape. `convert` renames tools to `{source}__{tool}`; `mirror` keeps the
+ * upstream MCP names; `proxy` forwards raw API paths.
+ */
+export type OutputConfig = {
+  name: string;
+  mode: OutputMode;
+  form: OutputForm[];
+  sources: OutputSourceRef[];
+  /** Credential for this endpoint only; empty falls back to the global token. */
+  token?: string;
+  allowCredentialSwitch?: boolean;
+};
+
 export type StdioTransportConfig = {
   type: "stdio";
   command: string;
@@ -36,8 +60,6 @@ export type McpServerConfig = {
   cacheTtlMs: number;
   /** Pass client cancellation through to the upstream server. */
   timeoutMs: number;
-  /** Optional token that only unlocks this source's endpoints. */
-  accessToken?: string;
 };
 
 export type SecurityCredential = {
@@ -67,8 +89,6 @@ export type ApiConfig = {
    * the `x-bridge-credential` header (admin-only switching is always allowed).
    */
   allowCredentialSwitch?: boolean;
-  /** Optional token that only unlocks this source's endpoints. */
-  accessToken?: string;
   include?: string[];
   exclude?: string[];
   exposure: ExposureConfig;
@@ -100,6 +120,8 @@ export type BridgeConfig = {
   openapi: { version: "3.0" | "3.1"; title: string; description: string };
   mcpServers: McpServerConfig[];
   apis: ApiConfig[];
+  /** Endpoints the gateway publishes (sources + tool subset + shape). */
+  outputs: OutputConfig[];
   logging: { level: LogLevel; format: "text" | "json" };
   /** Absolute path of the config file (filled in by the loader). */
   configDir: string;
@@ -172,6 +194,42 @@ function normalizeExposure(raw: unknown, defaultPrefix: string): ExposureConfig 
   };
 }
 
+const OUTPUT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+export function normalizeOutput(raw: unknown, index = 0): OutputConfig {
+  if (!isPlainObject(raw)) throw new ConfigError(`outputs[${index}] must be an object`);
+  const name = asString(raw.name).trim();
+  if (!OUTPUT_NAME_PATTERN.test(name)) {
+    throw new ConfigError(
+      `输出名 "${name}" 不合法：只能包含字母、数字、点、下划线、连字符，且以字母或数字开头（最长 64 字符）。`,
+    );
+  }
+  const modeRaw = asString(raw.mode, "convert");
+  const mode: OutputMode = modeRaw === "mirror" || modeRaw === "proxy" ? modeRaw : "convert";
+  const rawForm = Array.isArray(raw.form) ? raw.form : raw.form ? [raw.form] : [];
+  const form = [...new Set(rawForm.map(String).filter((item): item is OutputForm => item === "mcp" || item === "api"))];
+  const rawSources = Array.isArray(raw.sources) ? raw.sources : [];
+  const sources: OutputSourceRef[] = rawSources.map((item) => {
+    if (typeof item === "string") {
+      if (!item.trim()) throw new ConfigError(`outputs[${index}].sources contains an empty name`);
+      return { source: item.trim(), tools: [] };
+    }
+    if (!isPlainObject(item)) throw new ConfigError(`outputs[${index}].sources entries must be a name or { source, tools }`);
+    const source = asString(item.source).trim();
+    if (!source) throw new ConfigError(`outputs[${index}].sources[].source is required`);
+    return { source, tools: (asStringArray(item.tools) ?? []).map((tool) => tool.trim()).filter(Boolean) };
+  });
+  return {
+    name,
+    mode,
+    // proxy/mirror only make sense in one shape; convert defaults to both.
+    form: mode === "mirror" ? ["mcp"] : mode === "proxy" ? ["api"] : form.length ? form : ["mcp", "api"],
+    sources,
+    token: raw.token ? asString(raw.token) : undefined,
+    allowCredentialSwitch: raw.allowCredentialSwitch === true,
+  };
+}
+
 function normalizeTransport(raw: unknown, configDir: string): StdioTransportConfig | HttpTransportConfig {
   if (!isPlainObject(raw)) throw new ConfigError(`mcpServers[].transport is required`);
   const type = asString(raw.type, "").toLowerCase();
@@ -204,7 +262,6 @@ export function normalizeMcpServer(raw: unknown, index: number, configDir: strin
     exposure: normalizeExposure(raw.exposure, ""),
     cacheTtlMs: asNumber(raw.cacheTtlMs, 15_000),
     timeoutMs: asNumber(raw.timeoutMs, 120_000),
-    accessToken: raw.accessToken ? asString(raw.accessToken) : undefined,
   };
 }
 
@@ -236,7 +293,6 @@ export function normalizeApi(raw: unknown, index: number, configDir: string): Ap
     security,
     credentialRefs: asStringArray(raw.credentialRefs) ?? [],
     allowCredentialSwitch: raw.allowCredentialSwitch === true,
-    accessToken: raw.accessToken ? asString(raw.accessToken) : undefined,
     include: asStringArray(raw.include),
     exclude: asStringArray(raw.exclude),
     exposure: normalizeExposure(raw.exposure, ""),
@@ -313,6 +369,7 @@ export async function loadConfig(configPath: string): Promise<BridgeConfig> {
       ? doc.mcpServers.map((item, index) => normalizeMcpServer(item, index, configDir))
       : [],
     apis: Array.isArray(doc.apis) ? doc.apis.map((item, index) => normalizeApi(item, index, configDir)) : [],
+    outputs: Array.isArray(doc.outputs) ? doc.outputs.map((item, index) => normalizeOutput(item, index)) : [],
     logging: {
       level: (["debug", "info", "warn", "error"] as LogLevel[]).includes(level) ? level : "info",
       format: asString(loggingRaw.format, "text") === "json" ? "json" : "text",
@@ -350,10 +407,12 @@ export type ManagedPayload = {
    * user's hand-written config.
    */
   excludes: Array<{ kind: "mcp" | "api"; name: string }>;
+  /** Endpoints created through the web UI (same shape as `outputs`). */
+  outputs: unknown[];
 };
 
 export function emptyManagedPayload(): ManagedPayload {
-  return { mcpServers: [], apis: [], excludes: [] };
+  return { mcpServers: [], apis: [], excludes: [], outputs: [] };
 }
 
 /**
@@ -402,7 +461,46 @@ export function mergeSources(
     }
   });
 
-  return { ...base, mcpServers, apis: applyCredentialRefs(apis, options) };
+  const sourceNames = new Set([...mcpServers.map((server) => server.name), ...apis.map((api) => api.name)]);
+  const outputs = mergeOutputs(base.outputs, managed.outputs, onWarning)
+    .map((output) => {
+      const kept = output.sources.filter((ref) => sourceNames.has(ref.source));
+      if (kept.length !== output.sources.length) {
+        onWarning?.(`输出 "${output.name}" 引用了不存在的来源，已忽略：${output.sources
+          .filter((ref) => !sourceNames.has(ref.source))
+          .map((ref) => ref.source)
+          .join(", ")}`);
+      }
+      return { ...output, sources: kept };
+    })
+    .filter((output) => output.sources.length > 0);
+
+  return {
+    ...base,
+    mcpServers,
+    apis: applyCredentialRefs(apis, options),
+    outputs,
+  };
+}
+
+/** Overlay UI-managed outputs by name (same rule as sources). */
+export function mergeOutputs(
+  base: OutputConfig[],
+  managed: unknown[],
+  onWarning?: (message: string) => void,
+): OutputConfig[] {
+  const outputs = [...(base ?? [])];
+  managed.forEach((raw, index) => {
+    try {
+      const normalized = normalizeOutput(raw, index);
+      const existing = outputs.findIndex((output) => output.name === normalized.name);
+      if (existing >= 0) outputs[existing] = normalized;
+      else outputs.push(normalized);
+    } catch (error) {
+      onWarning?.(`Ignoring managed output #${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
+  return outputs;
 }
 
 /** Merge saved credentials into the headers of every API that references them. */
