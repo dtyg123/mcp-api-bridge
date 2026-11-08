@@ -216,28 +216,36 @@ test("normalizeTransform validates operators and required fields", () => {
   assert.throws(() => normalizeTransform({ blocks: [{ op: "each", from: "a", as: "b", blocks: [{ op: "bogus" }] }] }), /blocks\[1\]/);
 });
 
-test("TransformStore persists, resolves the * default and removes entries", async () => {
-  await store.upsert("demo", "*", { root: "data", blocks: [{ op: "field", from: "total", as: "count" }] });
-  await store.upsert("demo", "listPets", { root: "data", blocks: [{ op: "field", from: "items" }] });
+test("TransformStore persists, resolves the * default per output and removes entries", async () => {
+  await store.upsert("out-a", "demo", "*", { root: "data", blocks: [{ op: "field", from: "total", as: "count" }] });
+  await store.upsert("out-a", "demo", "listPets", { root: "data", blocks: [{ op: "field", from: "items" }] });
+  await store.upsert("out-b", "demo", "listPets", { blocks: [{ op: "constant", as: "k", value: "b" }] });
 
-  // Exact match wins, the source-wide default is the fallback.
-  assert.deepEqual(store.get("demo", "listPets"), { root: "data", blocks: [{ op: "field", from: "items" }] });
-  assert.deepEqual(store.get("demo", "other"), { root: "data", blocks: [{ op: "field", from: "total", as: "count" }] });
-  assert.equal(store.get("nope", "other"), undefined);
+  // Exact match wins, the output + source default is the fallback.
+  assert.deepEqual(store.get("out-a", "demo", "listPets"), { root: "data", blocks: [{ op: "field", from: "items" }] });
+  assert.deepEqual(store.get("out-a", "demo", "other"), { root: "data", blocks: [{ op: "field", from: "total", as: "count" }] });
+  assert.equal(store.get("out-b", "demo", "other"), undefined, "the * default does not leak across outputs");
+  assert.equal(store.get("nope", "demo", "listPets"), undefined);
 
   const saved = JSON.parse(await readFile(path.join(tempDir, "transforms.json"), "utf8"));
-  assert.equal(saved.transforms.length, 2);
+  assert.equal(saved.transforms.length, 3);
+  assert.ok(saved.transforms.every((entry: any) => typeof entry.output === "string" && entry.output));
 
   await store.load();
-  assert.equal(store.list().length, 2);
-  assert.deepEqual(store.get("demo", "listPets")?.blocks[0], { op: "field", from: "items" });
+  assert.equal(store.list().length, 3);
+  assert.deepEqual(store.get("out-a", "demo", "listPets")?.blocks[0], { op: "field", from: "items" });
 
-  assert.equal(await store.remove("demo", "listPets"), true);
-  assert.equal(await store.remove("demo", "listPets"), false);
-  assert.deepEqual(store.get("demo", "listPets"), store.get("demo", "*"));
+  assert.equal(await store.remove("out-a", "demo", "listPets"), true);
+  assert.equal(await store.remove("out-a", "demo", "listPets"), false);
+  assert.deepEqual(store.get("out-a", "demo", "listPets"), store.get("out-a", "demo", "*"));
+
+  assert.equal(await store.removeOutput("out-b"), 1);
+  assert.equal(store.get("out-b", "demo", "listPets"), undefined);
+  assert.equal(store.list().length, 1);
 });
 
-test("TransformStore rejects unsafe source or tool names", async () => {
-  await assert.rejects(() => store.upsert("../evil", "x", { blocks: [{ op: "field", from: "a" }] }), /不合法/);
-  await assert.rejects(() => store.upsert("demo", "../x", { blocks: [{ op: "field", from: "a" }] }), /不合法/);
+test("TransformStore rejects unsafe output, source or tool names", async () => {
+  await assert.rejects(() => store.upsert("../evil", "demo", "x", { blocks: [{ op: "field", from: "a" }] }), /不合法/);
+  await assert.rejects(() => store.upsert("out", "../evil", "x", { blocks: [{ op: "field", from: "a" }] }), /不合法/);
+  await assert.rejects(() => store.upsert("out", "demo", "../x", { blocks: [{ op: "field", from: "a" }] }), /不合法/);
 });

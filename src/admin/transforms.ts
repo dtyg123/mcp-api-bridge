@@ -44,8 +44,10 @@ export type TransformConfig = {
 };
 
 export type TransformEntry = {
+  /** Output that applies this transform (transforms are output-scoped). */
+  output: string;
   source: string;
-  /** Tool name, or "*" for a source-wide default. */
+  /** Tool name, or "*" for a source-wide default within this output. */
   tool: string;
   config: TransformConfig;
   updatedAt: string;
@@ -384,8 +386,8 @@ export class TransformStore {
     private readonly logger: Logger,
   ) {}
 
-  private key(source: string, tool: string): string {
-    return `${source}::${tool}`;
+  private key(output: string, source: string, tool: string): string {
+    return `${output}::${source}::${tool}`;
   }
 
   async init(): Promise<void> {
@@ -398,23 +400,35 @@ export class TransformStore {
       const text = await readFile(this.file, "utf8");
       const parsed = JSON.parse(text);
       const list = isPlainObject(parsed) && Array.isArray(parsed.transforms) ? parsed.transforms : [];
+      let legacy = 0;
       for (const item of list) {
         if (!isPlainObject(item)) continue;
+        const output = String(item.output ?? "");
         const source = String(item.source ?? "");
         const tool = String(item.tool ?? "");
+        // Transforms used to be source-scoped; those entries no longer have a
+        // meaning because one source can be published through several outputs.
+        if (!output) {
+          legacy += 1;
+          continue;
+        }
         if (!source || !tool) continue;
         try {
-          this.entries.set(this.key(source, tool), {
+          this.entries.set(this.key(output, source, tool), {
+            output,
             source,
             tool,
             config: normalizeTransform(item.config),
             updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : new Date().toISOString(),
           });
         } catch (error) {
-          this.logger.warn(`Ignoring transform ${source}/${tool}: ${error instanceof Error ? error.message : String(error)}`);
+          this.logger.warn(`Ignoring transform ${output}/${source}/${tool}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
       this.logger.info("Loaded response transforms", { file: this.file, count: this.entries.size });
+      if (legacy > 0) {
+        this.logger.warn(`Ignoring ${legacy} source-scoped transform(s); transforms are now saved per output.`);
+      }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== "ENOENT") {
@@ -433,32 +447,51 @@ export class TransformStore {
   }
 
   list(): TransformEntry[] {
-    return [...this.entries.values()].sort((a, b) => `${a.source}/${a.tool}`.localeCompare(`${b.source}/${b.tool}`));
+    return [...this.entries.values()].sort((a, b) =>
+      `${a.output}/${a.source}/${a.tool}`.localeCompare(`${b.output}/${b.source}/${b.tool}`),
+    );
   }
 
-  /** Exact tool transform, falling back to the source-wide `*` entry. */
-  get(source: string, tool: string): TransformConfig | undefined {
-    return this.entries.get(this.key(source, tool))?.config ?? this.entries.get(this.key(source, "*"))?.config;
+  /** Exact tool transform, falling back to the output + source `*` entry. */
+  get(output: string, source: string, tool: string): TransformConfig | undefined {
+    return (
+      this.entries.get(this.key(output, source, tool))?.config ??
+      this.entries.get(this.key(output, source, "*"))?.config
+    );
   }
 
-  has(source: string, tool: string): boolean {
-    return this.entries.has(this.key(source, tool));
+  has(output: string, source: string, tool: string): boolean {
+    return this.entries.has(this.key(output, source, tool));
   }
 
-  async upsert(source: string, tool: string, raw: unknown): Promise<TransformEntry> {
+  async upsert(output: string, source: string, tool: string, raw: unknown): Promise<TransformEntry> {
+    if (!NAME_PATTERN.test(output)) throw new ConfigError(`输出名称 "${output}" 不合法。`);
     if (!NAME_PATTERN.test(source)) throw new ConfigError(`来源名称 "${source}" 不合法。`);
     if (tool !== "*" && !NAME_PATTERN.test(tool)) throw new ConfigError(`工具名称 "${tool}" 不合法。`);
     const config = normalizeTransform(raw);
-    const entry: TransformEntry = { source, tool, config, updatedAt: new Date().toISOString() };
-    this.entries.set(this.key(source, tool), entry);
+    const entry: TransformEntry = { output, source, tool, config, updatedAt: new Date().toISOString() };
+    this.entries.set(this.key(output, source, tool), entry);
     await this.persist();
     return entry;
   }
 
-  async remove(source: string, tool: string): Promise<boolean> {
-    const existed = this.entries.delete(this.key(source, tool));
+  async remove(output: string, source: string, tool: string): Promise<boolean> {
+    const existed = this.entries.delete(this.key(output, source, tool));
     if (existed) await this.persist();
     return existed;
+  }
+
+  /** Drop every transform belonging to a deleted output. Returns how many. */
+  async removeOutput(output: string): Promise<number> {
+    let removed = 0;
+    for (const entry of [...this.entries.values()]) {
+      if (entry.output === output) {
+        this.entries.delete(this.key(entry.output, entry.source, entry.tool));
+        removed += 1;
+      }
+    }
+    if (removed > 0) await this.persist();
+    return removed;
   }
 
   private async persist(): Promise<void> {

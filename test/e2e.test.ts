@@ -322,6 +322,34 @@ test("an output can combine sources and trim their tools", async () => {
   assert.match(bad.json.message, /nope/);
 });
 
+test("an output's transform controls both its REST and MCP responses", async () => {
+  await transforms.upsert("combo", "echo", "add", {
+    blocks: [
+      { op: "constant", as: "sum", value: 7 },
+      { op: "now", as: "at", format: "iso" },
+    ],
+  });
+  try {
+    const rest = await callRest("combo", "echo__add", { a: 1, b: 2 });
+    assert.equal(rest.json.transformed, true);
+    assert.equal(rest.json.data.sum, 7);
+    assert.equal(typeof rest.json.data.at, "string");
+
+    await withMcp(`${base}/mcp/combo`, async (client) => {
+      const added = await client.callTool({ name: "echo__add", arguments: { a: 1, b: 2 } });
+      assert.equal((added as any).structuredContent.sum, 7);
+      assert.equal((added.content as any[])[0].text, JSON.stringify((added as any).structuredContent, null, 2));
+    });
+
+    // The same tool on the source's default output is untouched.
+    const direct = await callRest("echo", "add", { a: 1, b: 2 });
+    assert.equal(direct.json.transformed, undefined);
+    assert.equal(direct.json.data, 3);
+  } finally {
+    await transforms.remove("combo", "echo", "add");
+  }
+});
+
 test("mirror mode keeps the upstream MCP tool names", async () => {
   const saved = await saveOutput({
     name: "raw-echo",

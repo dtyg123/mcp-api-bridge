@@ -110,16 +110,18 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
   app.set("trust proxy", true);
 
   /**
-   * Envelope + optional 数据编排 transform. The transform replaces `data`
-   * (and its text projection) with the blocks the user configured, so an API
-   * consumer only sees the fields the admin decided to expose.
+   * Envelope + optional 数据编排 transform. Transforms are scoped to the
+   * output being served, so the same tool can look different on two outputs.
+   * The transform replaces `data` (and its text projection) with the blocks
+   * the user configured, so an API consumer only sees the exposed fields.
    */
   const envelopeFor = (
+    output: OutputConfig | undefined,
     tool: BridgeTool,
     result: ToolResult,
     envelope: Record<string, unknown> = toolEnvelope(tool, result),
   ): Record<string, unknown> => {
-    const transform = transforms.get(tool.source, tool.originalName);
+    const transform = output ? transforms.get(output.name, tool.source, tool.originalName) : undefined;
     if (!transform) return envelope;
     try {
       const { value } = applyTransform(transform, envelope.data);
@@ -133,6 +135,33 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn(`Transform failed (${tool.source}/${tool.originalName}): ${message}`);
       return { ...envelope, transformed: false, transformError: message };
+    }
+  };
+
+  /** MCP counterpart of `envelopeFor`: reshape `structuredContent` + text. */
+  const mapMcpResult = (output: OutputConfig, tool: BridgeTool, result: ToolResult): ToolResult => {
+    if (result.isError === true) return result;
+    const transform = transforms.get(output.name, tool.source, tool.originalName);
+    if (!transform) return result;
+    try {
+      const data =
+        result.structuredContent !== undefined
+          ? result.structuredContent
+          : (() => {
+              const text = textOf(result);
+              const parsed = safeJsonParse(text);
+              return parsed.ok ? parsed.value : text;
+            })();
+      const { value } = applyTransform(transform, data);
+      return {
+        ...result,
+        structuredContent: value,
+        content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Transform failed (${output.name}/${tool.source}/${tool.originalName}): ${message}`);
+      return result;
     }
   };
 
@@ -233,6 +262,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
           instructions: `MCP bridge output "${output.name}" (${output.mode}).`,
           listTools: () => registry.getOutputTools(output),
           getTool: (name) => registry.findOutputTool(output, name),
+          mapResult: (tool, result) => mapMcpResult(output, tool, result),
           logger: logger.child(`mcp:${output.name}`),
         }),
     });
@@ -385,7 +415,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     }
 
     try {
-      res.json(envelopeFor(tool, await tool.invoke(args, { headers: overrideHeaders })));
+      res.json(envelopeFor(output, tool, await tool.invoke(args, { headers: overrideHeaders })));
     } catch (error) {
       if (error instanceof ToolArgumentError) {
         res.status(400).json({ ok: false, error: "invalid_arguments", message: error.message });
@@ -699,6 +729,12 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       res.status(404).json({ ok: false, error: "unknown_tool", message: `来源 "${source}" 上没有工具 "${identifier}"。` });
       return;
     }
+    const outputName = typeof body.output === "string" ? body.output.trim() : "";
+    const output = outputName ? findOutput(outputName) : undefined;
+    if (outputName && !output) {
+      res.status(404).json({ ok: false, error: "unknown_output", message: `没有名为 "${outputName}" 的输出。` });
+      return;
+    }
     const args = isPlainObject(body.arguments) ? body.arguments : {};
     const issues = validateArgs(tool.inputSchema, args);
     if (issues.length > 0) {
@@ -727,7 +763,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       const payload = raw
         ? base
         : {
-            ...envelopeFor(tool, result, base),
+            ...envelopeFor(output, tool, result, base),
             raw: { ok: base.ok, isError: base.isError, text: base.text, data: base.data, meta: base.meta },
           };
       res.json({
@@ -868,25 +904,33 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
   // 数据编排 (response transforms)
   // ---------------------------------------------------------------------------
 
-  const readTransformTarget = (body: Record<string, unknown>): { source: string; tool: string } => {
+  const readTransformTarget = (body: Record<string, unknown>): { output: string; source: string; tool: string } => {
+    const output = typeof body.output === "string" ? body.output.trim() : "";
     const source = typeof body.source === "string" ? body.source.trim() : "";
     const tool = typeof body.tool === "string" && body.tool.trim() ? body.tool.trim() : "*";
-    return { source, tool };
+    return { output, source, tool };
   };
 
-  router.get(`${adminApi}/transforms`, adminAuth, (_req, res) => {
+  router.get(`${adminApi}/transforms`, adminAuth, (req, res) => {
+    const output = typeof req.query.output === "string" ? req.query.output.trim() : "";
+    const list = transforms.list();
     res.json({
       ok: true,
       file: transforms.filePath,
-      transforms: transforms.list(),
+      transforms: output ? list.filter((item) => item.output === output) : list,
       sources: sourceSummaries(),
     });
   });
 
-  router.get(`${adminApi}/transforms/:source/:tool`, adminAuth, (req: Request, res: Response) => {
-    const entry = transforms.list().find((item) => item.source === req.params.source && item.tool === req.params.tool);
+  router.get(`${adminApi}/transforms/:output/:source/:tool`, adminAuth, (req: Request, res: Response) => {
+    const entry = transforms
+      .list()
+      .find(
+        (item) =>
+          item.output === req.params.output && item.source === req.params.source && item.tool === req.params.tool,
+      );
     if (!entry) {
-      res.status(404).json({ ok: false, error: "unknown_transform", message: "该接口还没有配置数据编排。" });
+      res.status(404).json({ ok: false, error: "unknown_transform", message: "该输出上的这个接口还没有配置数据编排。" });
       return;
     }
     res.json({ ok: true, transform: entry });
@@ -894,13 +938,26 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
 
   router.put(`${adminApi}/transforms`, adminAuth, async (req: Request, res: Response) => {
     const body = isPlainObject(req.body) ? req.body : {};
-    const { source, tool } = readTransformTarget(body);
-    if (!source) {
-      res.status(400).json({ ok: false, error: "invalid_request", message: "需要 source。" });
+    const { output, source, tool } = readTransformTarget(body);
+    if (!output || !source) {
+      res.status(400).json({ ok: false, error: "invalid_request", message: "需要 output 和 source。" });
+      return;
+    }
+    const target = findOutput(output);
+    if (!target) {
+      res.status(400).json({ ok: false, error: "unknown_output", message: `没有名为 "${output}" 的输出。` });
+      return;
+    }
+    if (!target.sources.some((ref) => ref.source === source)) {
+      res.status(400).json({ ok: false, error: "unknown_source", message: `来源 "${source}" 不属于输出 "${output}"。` });
+      return;
+    }
+    if (tool !== "*" && !registry.getToolsForSource(source).some((item) => item.originalName === tool)) {
+      res.status(400).json({ ok: false, error: "unknown_tool", message: `来源 "${source}" 上没有工具 "${tool}"。` });
       return;
     }
     try {
-      const entry = await transforms.upsert(source, tool, body.config ?? body);
+      const entry = await transforms.upsert(output, source, tool, body.config ?? body);
       res.json({ ok: true, transform: entry });
     } catch (error) {
       if (error instanceof ConfigError) {
@@ -911,13 +968,13 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
     }
   });
 
-  router.delete(`${adminApi}/transforms/:source/:tool`, adminAuth, async (req: Request, res: Response) => {
-    const removed = await transforms.remove(req.params.source, req.params.tool);
+  router.delete(`${adminApi}/transforms/:output/:source/:tool`, adminAuth, async (req: Request, res: Response) => {
+    const removed = await transforms.remove(req.params.output, req.params.source, req.params.tool);
     if (!removed) {
-      res.status(404).json({ ok: false, error: "unknown_transform", message: "该接口没有配置数据编排。" });
+      res.status(404).json({ ok: false, error: "unknown_transform", message: "该输出上的这个接口没有配置数据编排。" });
       return;
     }
-    res.json({ ok: true, source: req.params.source, tool: req.params.tool });
+    res.json({ ok: true, output: req.params.output, source: req.params.source, tool: req.params.tool });
   });
 
   /** Try a transform on a sample payload without saving it (UI live preview). */
@@ -1076,6 +1133,7 @@ export function createHttpApp(runtime: GatewayRuntime): HttpApp {
       return;
     }
     await applyStoreConfig();
+    await transforms.removeOutput(name);
     res.json({ ok: true, name });
   });
 

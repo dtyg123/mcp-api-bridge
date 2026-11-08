@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { BridgeTool, JsonSchema } from "../types.js";
+import type { BridgeTool, JsonSchema, ToolResult } from "../types.js";
 import { isPlainObject } from "../util/json.js";
 import { ToolArgumentError, UpstreamError } from "../util/errors.js";
 import type { Logger } from "../util/logger.js";
@@ -11,6 +11,8 @@ export type GatewayServerOptions = {
   instructions?: string;
   listTools: () => Promise<BridgeTool[]> | BridgeTool[];
   getTool: (name: string) => BridgeTool | undefined;
+  /** Reshape a successful result before it is sent back to the MCP client. */
+  mapResult?: (tool: BridgeTool, result: ToolResult) => ToolResult;
   logger: Logger;
 };
 
@@ -46,7 +48,8 @@ export function createGatewayServer(options: GatewayServerOptions): Server {
     }
     const args = isPlainObject(request.params.arguments) ? request.params.arguments : {};
     try {
-      const result = await tool.invoke(args, { signal: extra.signal });
+      const raw = await tool.invoke(args, { signal: extra.signal });
+      const result = options.mapResult ? options.mapResult(tool, raw) : raw;
       const payload: Record<string, unknown> = {
         content: result.content,
         isError: result.isError === true,

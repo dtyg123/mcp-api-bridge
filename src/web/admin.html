@@ -369,11 +369,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>编排</th><th>输出</th><th>操作</th>
+                  <th>名称</th><th>类型</th><th>状态</th><th>工具</th><th>输出</th><th>操作</th>
                 </tr>
               </thead>
               <tbody id="source-rows">
-                <tr><td colspan="7" class="empty">加载中…</td></tr>
+                <tr><td colspan="6" class="empty">加载中…</td></tr>
               </tbody>
             </table>
           </div>
@@ -381,13 +381,8 @@
         </div>
       </section>
 
-      <!-- ================= 工作台（接口测试 + 编排） ================= -->
+      <!-- ================= 工作台（接口测试） ================= -->
       <section id="tab-workspace" hidden>
-        <div class="seg" id="ws-seg">
-          <button data-ws="try" class="active">接口测试</button>
-          <button data-ws="transform">编排</button>
-        </div>
-
         <div id="ws-panel-try">
           <div class="tester">
             <aside class="card tester-side">
@@ -401,84 +396,6 @@
             </aside>
             <div class="tester-main">
               <div class="card" id="try-detail"><div class="empty">从左侧选择一个接口开始测试</div></div>
-            </div>
-          </div>
-        </div>
-
-        <div id="ws-panel-transform" hidden>
-          <div class="tf-banner">
-            🧭 <b>编排是接入 MCP 前的必要步骤。</b> 选择接口 → 探测字段 → 在右侧编排输出（或一键「快速编排」）→ 保存。所有新增的 API 都需要先完成编排，再对外提供 MCP 工具。
-          </div>
-
-          <div class="tf-topbar card">
-            <div class="tf-selectors">
-              <label class="field"><span>来源</span><select id="transform-source"></select></label>
-              <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（全部接口默认规则）</option></select></label>
-            </div>
-            <div class="tf-topactions">
-              <button id="transform-probe" class="ghost">🔍 探测字段</button>
-              <button id="transform-quick" class="primary">🚀 快速编排</button>
-              <span class="badge" id="transform-state">未保存</span>
-            </div>
-          </div>
-
-          <div class="tf-mapping">
-            <!-- 左：可用字段 -->
-            <div class="tf-col tf-left card">
-              <h2>可用字段 <span class="hint">来自上游响应 / 手动添加</span></h2>
-              <div class="tf-addcustom">
-                <input id="tf-custom-path" type="text" placeholder="手动添加字段路径，如 data.id" />
-                <button id="tf-custom-add" class="ghost">＋ 添加</button>
-              </div>
-              <div id="tf-available" class="tf-available">
-                <div class="empty">点「探测字段」获取上游字段，或在上方手动添加。</div>
-              </div>
-            </div>
-
-            <div class="tf-arrow">→</div>
-
-            <!-- 右：编排输出 -->
-            <div class="tf-col tf-right card">
-              <h2>编排输出 <span class="hint">可自定义输出名（明亮）</span></h2>
-              <div id="tf-output" class="tf-output">
-                <div class="empty">从左侧添加字段，或点「快速编排」一键照搬。</div>
-              </div>
-              <div class="tf-output-actions">
-                <button id="tf-add-now" class="ghost">＋ 计算字段（时间）</button>
-                <button id="tf-add-constant" class="ghost">＋ 固定值</button>
-                <button id="tf-add-text" class="ghost">＋ 模板文本</button>
-              </div>
-              <div class="tf-options">
-                <label class="field"><span>数据根路径（留空 = 整个响应）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
-                <span class="checkline"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="tf-footer card">
-            <div class="tf-footer-actions">
-              <button class="primary" id="transform-save">保存编排</button>
-              <button class="danger" id="transform-delete">删除编排</button>
-              <span class="sub" id="transform-status"></span>
-            </div>
-            <div class="result" id="transform-result"></div>
-            <div class="tf-preview">
-              <div class="tf-preview-pane">
-                <label class="field">
-                  <span>示例响应</span>
-                  <textarea id="transform-sample">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
-                </label>
-                <div class="form-actions">
-                  <button id="transform-grab">抓真实响应</button>
-                  <button id="transform-preview-btn">预览</button>
-                </div>
-              </div>
-              <div class="tf-preview-pane">
-                <label class="field">
-                  <span>预览结果</span>
-                  <textarea id="transform-preview" readonly></textarea>
-                </label>
-              </div>
             </div>
           </div>
         </div>
@@ -674,6 +591,85 @@
             <label class="field" id="output-cred-wrap"><span>凭证切换</span><span class="checkline" style="margin: 6px 0 0"><label><input type="checkbox" id="output-allow-cred" /> 允许调用方用 <code>x-bridge-credential</code> 切换凭证</label></span></label>
           </div>
 
+          <details class="adv" id="output-transform" hidden>
+            <summary>数据编排（控制 MCP / API 调用返回）</summary>
+            <div class="tf-banner">
+              🧭 <b>编排只作用于当前输出。</b> 选择该输出里的来源与接口 → 探测字段 → 在右侧编排返回（或一键「快速编排」）→ 保存。保存后，这个输出的 MCP <code>structuredContent</code> 和 API <code>data</code> 都会按此重排。
+            </div>
+
+            <div class="tf-topbar card">
+              <div class="tf-selectors">
+                <label class="field"><span>来源</span><select id="transform-source"></select></label>
+                <label class="field"><span>接口</span><select id="transform-tool"><option value="*">（全部接口默认规则）</option></select></label>
+              </div>
+              <div class="tf-topactions">
+                <button id="transform-probe" class="ghost">🔍 探测字段</button>
+                <button id="transform-quick" class="primary">🚀 快速编排</button>
+                <span class="badge" id="transform-state">未保存</span>
+              </div>
+            </div>
+
+            <div class="tf-mapping">
+              <!-- 左：可用字段 -->
+              <div class="tf-col tf-left card">
+                <h2>可用字段 <span class="hint">来自上游响应 / 手动添加</span></h2>
+                <div class="tf-addcustom">
+                  <input id="tf-custom-path" type="text" placeholder="手动添加字段路径，如 data.id" />
+                  <button id="tf-custom-add" class="ghost">＋ 添加</button>
+                </div>
+                <div id="tf-available" class="tf-available">
+                  <div class="empty">点「探测字段」获取上游字段，或在上方手动添加。</div>
+                </div>
+              </div>
+
+              <div class="tf-arrow">→</div>
+
+              <!-- 右：编排输出 -->
+              <div class="tf-col tf-right card">
+                <h2>编排输出 <span class="hint">可自定义输出名（明亮）</span></h2>
+                <div id="tf-output" class="tf-output">
+                  <div class="empty">从左侧添加字段，或点「快速编排」一键照搬。</div>
+                </div>
+                <div class="tf-output-actions">
+                  <button id="tf-add-now" class="ghost">＋ 计算字段（时间）</button>
+                  <button id="tf-add-constant" class="ghost">＋ 固定值</button>
+                  <button id="tf-add-text" class="ghost">＋ 模板文本</button>
+                </div>
+                <div class="tf-options">
+                  <label class="field"><span>数据根路径（留空 = 整个响应）</span><input id="transform-root" type="text" placeholder="例如 data.list 或 items[0]" /></label>
+                  <span class="checkline"><label><input type="checkbox" id="transform-passthrough" /> 保留原字段（passthrough）</label></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tf-footer card">
+              <div class="tf-footer-actions">
+                <button class="primary" id="transform-save">保存编排</button>
+                <button class="danger" id="transform-delete">删除编排</button>
+                <span class="sub" id="transform-status"></span>
+              </div>
+              <div class="result" id="transform-result"></div>
+              <div class="tf-preview">
+                <div class="tf-preview-pane">
+                  <label class="field">
+                    <span>示例响应</span>
+                    <textarea id="transform-sample">{ "items": [ { "id": 1, "name": "Rex" } ], "total": 1 }</textarea>
+                  </label>
+                  <div class="form-actions">
+                    <button id="transform-grab">抓真实响应</button>
+                    <button id="transform-preview-btn">预览</button>
+                  </div>
+                </div>
+                <div class="tf-preview-pane">
+                  <label class="field">
+                    <span>预览结果</span>
+                    <textarea id="transform-preview" readonly></textarea>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </details>
+
           <div class="form-actions">
             <button class="primary" id="output-save">保存输出</button>
             <button class="ghost" id="output-cancel">取消</button>
@@ -824,20 +820,6 @@
         }
 
         // ---------------- tabs ----------------
-        const wsState = { panel: "try" };
-
-        function showWorkspacePanel(panel) {
-          wsState.panel = panel === "transform" ? "transform" : "try";
-          document.querySelectorAll("#ws-seg button").forEach((other) => other.classList.toggle("active", other.dataset.ws === wsState.panel));
-          $("ws-panel-try").hidden = wsState.panel !== "try";
-          $("ws-panel-transform").hidden = wsState.panel !== "transform";
-          if (wsState.panel === "try") initTester();
-          else initTransforms();
-        }
-
-        document.querySelectorAll("#ws-seg button").forEach((button) => {
-          button.addEventListener("click", () => showWorkspacePanel(button.dataset.ws));
-        });
 
         document.querySelectorAll("nav.tabs button").forEach((button) => {
           button.addEventListener("click", () => {
@@ -852,7 +834,7 @@
               loadCredentials();
             }
             if (tab === "outputs") loadOutputs();
-            if (tab === "workspace") showWorkspacePanel(wsState.panel);
+            if (tab === "workspace") initTester();
           });
         });
 
@@ -870,7 +852,7 @@
           if (!sources.length) {
             const row = document.createElement("tr");
             const cell = document.createElement("td");
-            cell.colSpan = 7;
+            cell.colSpan = 6;
             cell.className = "empty";
             cell.textContent = "还没有来源。去「来源」接入第一个 MCP Server 或 OpenAPI 服务吧。";
             row.appendChild(cell);
@@ -907,13 +889,6 @@
             toolsCell.textContent = String(source.toolCount ?? 0);
             row.appendChild(toolsCell);
 
-            const orchestrated = isOrchestrated(source.name);
-            const orchCell = document.createElement("td");
-            orchCell.appendChild(
-              badge(orchestrated ? "已编排" : "未编排", orchestrated ? "ok" : "err"),
-            );
-            row.appendChild(orchCell);
-
             // Which outputs this source is published through (the convert marker).
             const outputCell = document.createElement("td");
             const related = state.outputs.filter((output) =>
@@ -947,7 +922,7 @@
             const openButton = document.createElement("button");
             openButton.className = "primary";
             openButton.textContent = "打开";
-            openButton.title = "进入工作台：测试接口 / 编排数据";
+            openButton.title = "进入工作台测试接口";
             openButton.addEventListener("click", () => openWorkspace(source));
             actions.appendChild(openButton);
 
@@ -1630,11 +1605,10 @@
             $("stat-uptime").innerHTML = seconds < 60 ? `${seconds}<small> 秒</small>` : `${h > 0 ? `${h}<small> 时 </small>` : ""}${m}<small> 分</small>`;
             $("stat-version").textContent = data.version || BOOT.version;
             $("base-chip").textContent = BOOT.baseUrl || location.origin;
-            await refreshTransformSaved();
             renderSources(state.sources);
             fillTrySources(state.sources);
           } catch (error) {
-            $("source-rows").innerHTML = '<tr><td colspan="7" class="empty">无法加载来源列表</td></tr>';
+            $("source-rows").innerHTML = '<tr><td colspan="6" class="empty">无法加载来源列表</td></tr>';
             setResult("source-error", false, error.message || "加载失败", [
               error.status === 401 ? "请在上方输入管理员 Token 后点「保存 Token」。" : "请检查服务是否正常运行。",
             ]);
@@ -1816,8 +1790,6 @@
             updateModeLabels();
             $("mcp-save").textContent = "保存并上线";
             await loadOverview();
-            toast(`「${result.name}」已上线，正在自动为各接口生成字段编排…`, "ok");
-            autoOrchestrateAfterAdd(result.name);
           } catch (error) {
             setResult("mcp-result", false, error.message || "保存失败", []);
           } finally {
@@ -1925,8 +1897,6 @@
             updateModeLabels();
             $("api-save").textContent = "保存并上线";
             await loadOverview();
-            toast(`「${result.name}」已上线，正在自动为各接口生成字段编排…`, "ok");
-            autoOrchestrateAfterAdd(result.name);
           } catch (error) {
             setResult("api-result", false, error.message || "保存失败", []);
           } finally {
@@ -2126,14 +2096,13 @@
         const TF_KIND_LABELS = { field: "字段", now: "时间", constant: "固定值", text: "文本", other: "其他" };
 
         const tfState = {
+          output: "",
           source: "",
           tool: "*",
           tools: [],
           saved: [],
           /** 可用字段（探测得到 + 手动添加），渲染在左侧。 */
           available: [],
-          pending: null,
-          initialized: false,
         };
 
         // ===== helpers =====
@@ -2357,13 +2326,16 @@
           const select = $("transform-source");
           const current = tfState.source || select.value;
           select.innerHTML = "";
-          for (const source of state.sources) {
+          const output = outState.outputs.find((item) => item.name === tfState.output);
+          const refs = output ? output.sources : [];
+          for (const ref of refs) {
+            const source = state.sources.find((item) => item.name === ref.source) || outState.sources.find((item) => item.name === ref.source);
             const option = document.createElement("option");
-            option.value = source.name;
-            option.textContent = `${source.name}（${source.type === "mcp" ? "MCP" : "OpenAPI"} · ${source.toolCount ?? 0} 个工具）`;
+            option.value = ref.source;
+            option.textContent = `${ref.source}（${source ? (source.type === "mcp" ? "MCP" : "OpenAPI") + " · " : ""}${ref.tools.length ? `${ref.tools.length} 个工具` : "全部工具"}）`;
             select.appendChild(option);
           }
-          if (current && state.sources.some((s) => s.name === current)) select.value = current;
+          if (current && [...select.options].some((option) => option.value === current)) select.value = current;
           tfState.source = select.value;
         }
 
@@ -2390,7 +2362,10 @@
           if (!source) return;
           try {
             const data = await api(`/sources/${sourceKind(source)}/${encodeURIComponent(name)}/tools`);
-            tfState.tools = data.tools || [];
+            const output = outState.outputs.find((item) => item.name === tfState.output);
+            const ref = (output ? output.sources : []).find((item) => item.source === name);
+            const allowed = ref && ref.tools.length ? new Set(ref.tools) : null;
+            tfState.tools = (data.tools || []).filter((tool) => !allowed || allowed.has(tool.name));
           } catch {
             tfState.tools = [];
           }
@@ -2400,7 +2375,9 @@
         function loadTransformEditor(source, tool) {
           tfState.source = source;
           tfState.tool = tool;
-          const entry = tfState.saved.find((item) => item.source === source && item.tool === tool);
+          const entry = tfState.saved.find(
+            (item) => item.output === tfState.output && item.source === source && item.tool === tool,
+          );
           const config = entry ? entry.config : { blocks: [] };
           $("transform-root").value = config.root || "";
           $("transform-passthrough").checked = config.passthrough === true;
@@ -2433,46 +2410,10 @@
           loadTransformEditor(source, tfState.tool);
         }
 
-        /** 从概览「打开」进入工作台；未编排的 API 直接落到「编排」面板。 */
+        /** 从概览「打开」进入工作台接口测试。 */
         function openWorkspace(source) {
-          const panel = source.kind === "api" && !isOrchestrated(source.name) ? "transform" : "try";
           tryState.pendingSource = source.name;
-          tfState.pending = { source: source.name, tool: "*" };
-          wsState.panel = panel;
           document.querySelector('nav.tabs button[data-tab="workspace"]').click();
-        }
-
-        /**
-         * 添加来源成功后自动完成一次编排：跳到编排页，逐个接口探测字段并「快速编排」后保存。
-         * 对探测失败（需要参数的接口）兜底开启「保留原字段」。最多处理 30 个接口，避免对大源（如雨云 217 个）
-         * 疯狂请求上游；首个接口编排保存成功后概览的「已编排」徽章即变绿。
-         */
-        async function autoOrchestrateAfterAdd(sourceName) {
-          // 跳到工作台「编排」并等初始化（加载已保存编排 / 填充来源下拉）完成，避免与 initTransforms 抢改 UI 状态
-          tfState.pending = null;
-          wsState.panel = "transform";
-          document.querySelector('nav.tabs button[data-tab="workspace"]').click();
-          await _initPromise;
-          await loadTransformTools(sourceName);
-          const tools = tfState.tools;
-          const limit = Math.min(tools.length, 30);
-          let done = 0;
-          for (let i = 0; i < limit; i++) {
-            const toolName = tools[i].name;
-            $("transform-source").value = sourceName;
-            $("transform-tool").value = toolName;
-            tfState.source = sourceName;
-            tfState.tool = toolName;
-            await probeFields(true);
-            quickOrchestrate(true);
-            await saveTransform(true);
-            done++;
-          }
-          // 收尾：回到默认规则视图，让用户看到整体状态
-          $("transform-tool").value = "*";
-          tfState.tool = "*";
-          loadTransformEditor(sourceName, "*");
-          toast(`已为「${sourceName}」自动快速编排 ${done} 个接口（原样照搬，可在工作台「编排」微调）`, "ok");
         }
 
         function setTransformState(st) {
@@ -2550,7 +2491,7 @@
           const tool = $("transform-tool").value;
           if (!source || !tool || tool === "*") { toast("先选择一个具体接口，才能抓真实响应", "err"); return; }
           try {
-            const data = await api("/invoke", { method: "POST", body: JSON.stringify({ source, tool, arguments: {}, raw: true }) });
+            const data = await api("/invoke", { method: "POST", body: JSON.stringify({ output: tfState.output, source, tool, arguments: {}, raw: true }) });
             $("transform-sample").value = JSON.stringify(data.data ?? null, null, 2);
             toast(`已填入 ${tool} 的响应`, data.ok ? "ok" : "");
             await previewTransform();
@@ -2558,19 +2499,20 @@
         }
 
         async function refreshTransformSaved() {
+          if (!tfState.output) {
+            tfState.saved = [];
+            return;
+          }
           try {
-            const data = await api("/transforms");
+            const data = await api(`/transforms?output=${encodeURIComponent(tfState.output)}`);
             tfState.saved = data.transforms || [];
           } catch {}
-        }
-
-        function isOrchestrated(sourceName) {
-          return tfState.saved.some((e) => e.source === sourceName);
         }
 
         async function saveTransform(silent = false) {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
+          if (!tfState.output) { if (!silent) toast("先保存输出，再配置数据编排", "err"); return; }
           if (!source) { if (!silent) toast("请先选择来源", "err"); return; }
           const config = collectTransformConfig();
           if (!config.blocks.length && !config.passthrough) {
@@ -2580,8 +2522,8 @@
           const btn = $("transform-save");
           btn.disabled = true; btn.textContent = "保存中…";
           try {
-            await api("/transforms", { method: "PUT", body: JSON.stringify({ source, tool, config }) });
-            if (!silent) toast(`已保存 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排`, "ok");
+            await api("/transforms", { method: "PUT", body: JSON.stringify({ output: tfState.output, source, tool, config }) });
+            if (!silent) toast(`已保存输出「${tfState.output}」的 ${source} / ${tool === "*" ? "全部接口" : tool} 数据编排`, "ok");
             await refreshTransformSaved();
             loadTransformEditor(source, tool);
           } catch (error) {
@@ -2594,9 +2536,10 @@
         async function deleteTransform() {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
-          if (!confirm(`确定删除 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排？`)) return;
+          if (!tfState.output) return;
+          if (!confirm(`确定删除输出「${tfState.output}」上 ${source} / ${tool === "*" ? "全部接口" : tool} 的数据编排？`)) return;
           try {
-            await api(`/transforms/${encodeURIComponent(source)}/${encodeURIComponent(tool)}`, { method: "DELETE" });
+            await api(`/transforms/${encodeURIComponent(tfState.output)}/${encodeURIComponent(source)}/${encodeURIComponent(tool)}`, { method: "DELETE" });
             toast("已删除数据编排", "ok");
             await refreshTransformSaved();
             loadTransformEditor(source, tool);
@@ -2605,23 +2548,26 @@
           }
         }
 
-        let _initPromise = Promise.resolve();
-        function initTransforms() {
-          _initPromise = (async () => {
-            try { await refreshTransformSaved(); } catch (error) { toast(`加载编排失败：${error.message}`, "err"); }
-            if (!state.sources.length) {
-              $("tf-available").innerHTML = '<div class="empty">还没有来源，先去「来源」接入一个。</div>';
-              return;
-            }
-            const pending = tfState.pending;
-            tfState.pending = null;
-            if (tfState.initialized && !pending) return;
-            tfState.initialized = true;
-            fillTransformSources();
-            const source = pending ? pending.source : tfState.source;
-            await selectTransformTarget(source, pending ? pending.tool : "*");
-          })();
-          return _initPromise;
+        async function initOutputTransforms(output) {
+          tfState.output = output ? output.name : "";
+          tfState.available = [];
+          renderAvailable();
+          const section = $("output-transform");
+          const mode = $("output-mode").value;
+          if (!output || mode === "proxy") {
+            section.hidden = true;
+            return;
+          }
+          section.hidden = false;
+          await refreshTransformSaved();
+          fillTransformSources();
+          const source = output.sources[0] ? output.sources[0].source : "";
+          if (!source) {
+            $("transform-tool").innerHTML = '<option value="*">（全部接口默认规则）</option>';
+            $("tf-available").innerHTML = '<div class="empty">当前输出还没有来源。</div>';
+            return;
+          }
+          await selectTransformTarget(source, "*");
         }
 
         // ===== 事件绑定 =====
@@ -2889,6 +2835,7 @@
           clearResult("output-result");
           syncOutputMode();
           await renderOutputSources(output);
+          await initOutputTransforms(output);
           $("output-editor").scrollIntoView({ behavior: "smooth", block: "start" });
         }
 
@@ -2908,7 +2855,9 @@
 
         $("output-mode").addEventListener("change", async () => {
           syncOutputMode();
-          await renderOutputSources(outState.editing ? outState.outputs.find((item) => item.name === outState.editing) : undefined);
+          const output = outState.editing ? outState.outputs.find((item) => item.name === outState.editing) : undefined;
+          await renderOutputSources(output);
+          await initOutputTransforms(output);
         });
 
         $("output-new").addEventListener("click", () => editOutput(undefined));
@@ -2945,9 +2894,8 @@
             };
             const data = await api("/outputs", { method: "POST", body: JSON.stringify(payload) });
             toast(`已保存输出「${data.output.name}」`, "ok");
-            $("output-editor").hidden = true;
-            outState.editing = "";
             await loadOutputs();
+            await editOutput(outState.outputs.find((item) => item.name === data.output.name));
           } catch (error) {
             setResult("output-result", false, error.message || "保存失败", []);
           } finally {

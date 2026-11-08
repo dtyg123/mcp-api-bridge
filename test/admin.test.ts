@@ -336,15 +336,16 @@ test("response transforms reshape what the REST surface returns", async () => {
   const saved = await fetch(`${base}/admin/api/transforms`, {
     method: "PUT",
     headers: authHeaders(),
-    body: JSON.stringify({ source: "petstore-cred", tool: "listPets", config }),
+    body: JSON.stringify({ output: "petstore-cred", source: "petstore-cred", tool: "listPets", config }),
   }).then((r) => r.json());
   assert.equal(saved.ok, true);
+  assert.equal(saved.transform.output, "petstore-cred");
   assert.equal(saved.transform.tool, "listPets");
 
   const invalid = await fetch(`${base}/admin/api/transforms`, {
     method: "PUT",
     headers: authHeaders(),
-    body: JSON.stringify({ source: "petstore-cred", tool: "listPets", config: { blocks: [{ op: "nope" }] } }),
+    body: JSON.stringify({ output: "petstore-cred", source: "petstore-cred", tool: "listPets", config: { blocks: [{ op: "nope" }] } }),
   });
   assert.equal(invalid.status, 400);
 
@@ -358,7 +359,7 @@ test("response transforms reshape what the REST surface returns", async () => {
   assert.ok(!("items" in rest.data));
 
   // The admin tester gets both the transformed result and the raw upstream one.
-  const both = await adminPost("/admin/api/invoke", { source: "petstore-cred", tool: "listPets", arguments: { limit: 1 } });
+  const both = await adminPost("/admin/api/invoke", { output: "petstore-cred", source: "petstore-cred", tool: "listPets", arguments: { limit: 1 } });
   assert.equal(both.status, 200);
   assert.equal(both.json.transformed, true);
   assert.ok(both.json.raw, "raw envelope is included");
@@ -366,15 +367,15 @@ test("response transforms reshape what the REST surface returns", async () => {
   assert.ok(!("items" in both.json.data));
 
   // The admin tester can still ask for the raw upstream payload.
-  const raw = await adminPost("/admin/api/invoke", { source: "petstore-cred", tool: "listPets", arguments: { limit: 1 }, raw: true });
+  const raw = await adminPost("/admin/api/invoke", { output: "petstore-cred", source: "petstore-cred", tool: "listPets", arguments: { limit: 1 }, raw: true });
   assert.equal(raw.status, 200);
   assert.equal(raw.json.transformed, undefined);
   assert.equal(raw.json.data.items.length, 1);
 
-  const listed = await fetch(`${base}/admin/api/transforms`, { headers: authHeaders() }).then((r) => r.json());
-  assert.ok(listed.transforms.some((item: any) => item.source === "petstore-cred" && item.tool === "listPets"));
+  const listed = await fetch(`${base}/admin/api/transforms?output=petstore-cred`, { headers: authHeaders() }).then((r) => r.json());
+  assert.ok(listed.transforms.some((item: any) => item.output === "petstore-cred" && item.source === "petstore-cred" && item.tool === "listPets"));
 
-  const removed = await fetch(`${base}/admin/api/transforms/petstore-cred/listPets`, {
+  const removed = await fetch(`${base}/admin/api/transforms/petstore-cred/petstore-cred/listPets`, {
     method: "DELETE",
     headers: authHeaders(),
   }).then((r) => r.json());
