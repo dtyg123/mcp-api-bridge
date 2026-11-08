@@ -2425,12 +2425,21 @@
         }
 
         // ===== 探测 / 快速编排 / 预览 =====
-        async function probeFields(silent = false) {
+        async function probeFields() {
           const source = $("transform-source").value;
-          const tool = $("transform-tool").value;
-          if (!source) { if (!silent) toast("先选择来源", "err"); return; }
+          let tool = $("transform-tool").value;
+          if (!source) { toast("先选择来源", "err"); return; }
           const src = state.sources.find((s) => s.name === source);
-          if (!src) { if (!silent) toast("来源不存在", "err"); return; }
+          if (!src) { toast("来源不存在", "err"); return; }
+          // "*" 不是一个真实接口，没法调用探测；用该输出里第一个只读接口做样本，
+          // 避免默认点一下就调用上游的 POST / PUT。
+          if (tool === "*") {
+            const sampleTool =
+              tfState.tools.find((item) => !item.method || String(item.method).toUpperCase() === "GET") ||
+              tfState.tools[0];
+            tool = sampleTool?.name || "";
+          }
+          if (!tool) { toast("当前输出没有可探测的接口", "err"); return; }
           const kind = sourceKind(src);
           const btn = $("transform-probe");
           btn.disabled = true; btn.textContent = "探测中…";
@@ -2443,24 +2452,24 @@
                 $("transform-sample").value = JSON.stringify(data.sample, null, 2);
               }
               renderAvailable();
-              if (!silent) toast(`发现 ${data.fields.length} 个字段`, "ok");
+              toast(`发现 ${data.fields.length} 个字段（样本来自 ${tool}）`, "ok");
             } else {
               tfState.available = [];
               renderAvailable();
-              if (!silent) toast(data.note || "没有发现字段，可手动添加", data.note ? "" : "err");
+              toast(data.note || "没有发现字段，可手动添加", data.note ? "" : "err");
             }
           } catch (error) {
-            if (!silent) toast(`探测失败：${error.message}`, "err");
+            toast(`探测失败：${error.message}`, "err");
           } finally {
             btn.disabled = false; btn.textContent = "🔍 探测字段";
           }
         }
 
-        function quickOrchestrate(silent = false) {
+        function quickOrchestrate() {
           if (!tfState.available.length) {
             $("transform-passthrough").checked = true;
             markDirty();
-            if (!silent) toast("未探测到字段，已开启「原样输出」。建议先探测。", "");
+            toast("未探测到字段，已开启「原样输出」。建议先探测。", "");
             return;
           }
           const box = $("tf-output");
@@ -2470,7 +2479,7 @@
             box.appendChild(buildOutputRow({ kind: "field", from: field.path, as: defaultNameOf(field.path) }));
           }
           markDirty();
-          if (!silent) toast(`已快速编排 ${tfState.available.length} 个字段（原样照搬，可再自定义输出名）`, "ok");
+          toast(`已快速编排 ${tfState.available.length} 个字段（原样照搬，可再自定义输出名）`, "ok");
         }
 
         async function previewTransform() {
@@ -2509,11 +2518,11 @@
           } catch {}
         }
 
-        async function saveTransform(silent = false) {
+        async function saveTransform() {
           const source = $("transform-source").value;
           const tool = $("transform-tool").value;
-          if (!tfState.output) { if (!silent) toast("先保存输出，再配置数据编排", "err"); return; }
-          if (!source) { if (!silent) toast("请先选择来源", "err"); return; }
+          if (!tfState.output) { toast("先保存输出，再配置数据编排", "err"); return; }
+          if (!source) { toast("请先选择来源", "err"); return; }
           const config = collectTransformConfig();
           if (!config.blocks.length && !config.passthrough) {
             setResult("transform-result", false, "至少需要一个输出字段，或开启「保留原字段」。", []);
@@ -2523,7 +2532,7 @@
           btn.disabled = true; btn.textContent = "保存中…";
           try {
             await api("/transforms", { method: "PUT", body: JSON.stringify({ output: tfState.output, source, tool, config }) });
-            if (!silent) toast(`已保存输出「${tfState.output}」的 ${source} / ${tool === "*" ? "全部接口" : tool} 数据编排`, "ok");
+            toast(`已保存输出「${tfState.output}」的 ${source} / ${tool === "*" ? "全部接口" : tool} 数据编排`, "ok");
             await refreshTransformSaved();
             loadTransformEditor(source, tool);
           } catch (error) {
